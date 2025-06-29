@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel;
 import com.navigine.idl.java.Location;
 import com.navigine.idl.java.LocationListener;
 import com.navigine.navigine.demo.utils.NavigineSdkManager;
+import com.google.firebase.auth.FirebaseAuth;
 
 public class SharedViewModel extends ViewModel {
 
@@ -15,10 +16,19 @@ public class SharedViewModel extends ViewModel {
 
     private LocationListener locationListener = null;
     private Handler mainHandler = new Handler(Looper.getMainLooper());
+    private FirebaseAuth firebaseAuth;
 
     public SharedViewModel() {
-        // Initialize location listener with a delay to ensure SDK is ready
-        initializeLocationListenerWithDelay();
+        firebaseAuth = FirebaseAuth.getInstance();
+
+        // Only initialize location listener if user is authenticated
+        if (isUserAuthenticated()) {
+            initializeLocationListenerWithDelay();
+        }
+    }
+
+    private boolean isUserAuthenticated() {
+        return firebaseAuth.getCurrentUser() != null;
     }
 
     private void initializeLocationListenerWithDelay() {
@@ -26,19 +36,27 @@ public class SharedViewModel extends ViewModel {
         mainHandler.postDelayed(new Runnable() {
             @Override
             public void run() {
-                initializeLocationListener();
+                // Double-check authentication before initializing
+                if (isUserAuthenticated()) {
+                    initializeLocationListener();
+                } else {
+                    System.out.println("User not authenticated, skipping location listener initialization");
+                }
             }
         }, 1000); // 1 second delay
     }
 
     private void initializeLocationListener() {
-        // Check if LocationManager is initialized
-        if (NavigineSdkManager.LocationManager != null) {
+        // Check if LocationManager is initialized and user is still authenticated
+        if (NavigineSdkManager.LocationManager != null && isUserAuthenticated()) {
             // Define the listener
             locationListener = new LocationListener() {
                 @Override
                 public void onLocationLoaded(Location location) {
-                    mLocation.postValue(location);
+                    // Only update location if user is still authenticated
+                    if (isUserAuthenticated()) {
+                        mLocation.postValue(location);
+                    }
                 }
 
                 @Override
@@ -57,6 +75,8 @@ public class SharedViewModel extends ViewModel {
             // Register the listener
             NavigineSdkManager.LocationManager.addLocationListener(locationListener);
             System.out.println("LocationListener added successfully");
+        } else if (!isUserAuthenticated()) {
+            System.out.println("User not authenticated, skipping location listener initialization");
         } else {
             // LocationManager not initialized yet, retry after another delay
             System.out.println("LocationManager is null. Retrying in 2 seconds...");
