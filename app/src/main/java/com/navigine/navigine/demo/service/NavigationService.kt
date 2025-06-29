@@ -16,9 +16,9 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.navigine.idl.java.Position
 import com.navigine.idl.java.PositionListener
+import com.navigine.navigine.demo.ui.activities.MainActivity
 import com.navigine.navigine.demo.utils.NavigineSdkManager
 import com.navigine.navigine.demo.R
-import com.navigine.navigine.demo.ui.activities.MainActivity
 import com.navigine.navigine.demo.utils.Constants
 
 class NavigationService : Service() {
