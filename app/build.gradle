@@ -1,0 +1,116 @@
+apply plugin: 'com.android.application'
+apply plugin: 'org.jetbrains.kotlin.android'
+apply plugin: 'com.google.gms.google-services'
+
+android {
+    namespace 'com.navigine.navigine.demo'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.navigine.navigine.demo"
+        minSdk 23
+        targetSdk 35
+        versionCode 3
+        versionName "3.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "DEFAULT_SERVER_URL", "\"https://ips.navigine.com\"")
+        buildConfigField "String", "DEFAULT_USER_HASH", "\"0000-0000-0000-0000\""
+    }
+    buildFeatures {
+        buildConfig = true
+        viewBinding = true
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.16.0'
+    def support_version        = "1.4.1"
+    def fragment_version       = "1.4.1"
+    def material_version       = "1.5.0"
+    def constraint_version     = "2.1.3"
+    def coordinator_version    = "1.2.0"
+    def swipe_version          = "1.1.0"
+    def navigation_version     = "2.4.2"
+    def lifecycle_version      = "2.4.1"
+    def glide_version          = "4.13.0"
+    def junit_version          = "4.13.2"
+    def espresso_version       = "3.4.0"
+    def lottie_version         = "5.0.3"
+    def volley_version         = "1.2.1"
+    def shimmer_version        = "0.5.0"
+    def work_version           = "2.8.1"
+
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    //navigine sdk
+    implementation project(":libnavigine")
+    //camera
+    implementation project(path: ':camera')
+    //test
+    testImplementation "junit:junit:$junit_version"
+    androidTestImplementation "androidx.test.ext:junit:1.1.3"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$espresso_version"
+    //support
+    implementation "androidx.appcompat:appcompat:$support_version"
+    //ui
+    implementation "androidx.constraintlayout:constraintlayout:$constraint_version"
+    implementation "com.google.android.material:material:$material_version"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$coordinator_version"
+    implementation "androidx.swiperefreshlayout:swiperefreshlayout:$swipe_version"
+    //fragment
+    implementation "androidx.fragment:fragment:$fragment_version"
+    //navigation
+    implementation "androidx.navigation:navigation-fragment:$navigation_version"
+    implementation "androidx.navigation:navigation-ui:$navigation_version"
+    //lifecycle
+    implementation "androidx.lifecycle:lifecycle-livedata:$lifecycle_version"
+    implementation "androidx.lifecycle:lifecycle-process:$lifecycle_version"
+    // Firebase Authentication
+    implementation 'com.google.firebase:firebase-auth-ktx:21.0.1'
+// Google Sign-In
+    implementation 'com.google.android.gms:play-services-auth:20.4.0'
+// Firebase BOM (recommended)
+    implementation platform('com.google.firebase:firebase-bom:32.1.0')
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.4.1"
+    //Glide
+    implementation      "com.github.bumptech.glide:glide:$glide_version"
+    annotationProcessor "com.github.bumptech.glide:compiler:$glide_version"
+    //Lottie
+    implementation "com.airbnb.android:lottie:$lottie_version"
+    //Volley
+    implementation "com.android.volley:volley:$volley_version"
+    //Shimmer
+    implementation "com.facebook.shimmer:shimmer:$shimmer_version"
+    //Worker
+    implementation "androidx.work:work-runtime:$work_version"
+    // Google Maps SDK
+    implementation 'com.google.android.gms:play-services-maps:18.0.2'
+
+// Location Services
+    implementation 'com.google.android.gms:play-services-location:21.0.1'
+
+// Gson library
+    implementation 'com.google.code.gson:gson:2.8.9'
+}
+
+task moveDebugApk(type: Copy) {
+    from file("$projectDir/build/intermediates/apk/debug/app-debug.apk")
+    into file("$rootDir")
+    rename("app-debug.apk", "NavigineDemo-debug.apk")
+}
+

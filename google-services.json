@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "152924190582",
+    "project_id": "canary-authentication",
+    "storage_bucket": "canary-authentication.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:152924190582:android:c2557f1adbdf38eec26c57",
+        "android_client_info": {
+          "package_name": "com.navigine.navigine.demo"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "152924190582-sr3u09sj2tvk1ph6iug6br5jle99lo8b.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.navigine.navigine.demo",
+            "certificate_hash": "3e3caa7ec3023f288a41a2a59e0bbe3bc2f49f1d"
+          }
+        },
+        {
+          "client_id": "152924190582-8ebnrl6l5pdipte7098ge5cid1m3vtsm.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA0jl8vFOjinX5e1eHGHd9rARPFIO6jf50"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "152924190582-8ebnrl6l5pdipte7098ge5cid1m3vtsm.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
