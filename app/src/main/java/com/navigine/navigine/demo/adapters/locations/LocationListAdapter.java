@@ -7,6 +7,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
@@ -36,7 +37,6 @@ public class LocationListAdapter extends RecyclerView.Adapter<LocationViewHolder
     private List<LocationInfo> filteredList = new ArrayList<>();
 
     private LocationViewHolder mSelectedHolder = null;
-
 
     @Override
     public void onAttachedToRecyclerView(@NonNull RecyclerView recyclerView) {
@@ -106,8 +106,9 @@ public class LocationListAdapter extends RecyclerView.Adapter<LocationViewHolder
                     case MotionEvent.ACTION_UP:
                         if (mTouchTime > 0 &&
                                 mTouchTime + TOUCH_SHORT_TIMEOUT > timeNow &&
-                                mTouchLength < TOUCH_SENSITIVITY * DimensionUtils.DisplayDensity)
+                                mTouchLength < TOUCH_SENSITIVITY * DimensionUtils.DisplayDensity) {
                             onHandleTouchEvent(locationId, holder);
+                        }
                         mTouchTime = 0;
                         mTouchLength = 0.0f;
                         break;
@@ -152,6 +153,19 @@ public class LocationListAdapter extends RecyclerView.Adapter<LocationViewHolder
 
     private void onHandleTouchEvent(int locationId, @NonNull LocationViewHolder holder) {
         if (!isCurrentLocation(locationId)) {
+            // Retrieve the LocationInfo for the selected locationId
+            LocationInfo selectedLocation = null;
+            for (LocationInfo info : NavigineSdkManager.LocationListManager.getLocationList().values()) {
+                if (info.getId() == locationId) {
+                    selectedLocation = info;
+                    break;
+                }
+            }
+            // Log the selected location
+            if (selectedLocation != null) {
+                Log.d("LocationAdapter", "Selected Location (mlocation): " + selectedLocation.toString());
+            }
+
             markViewHolderSelected(holder);
             selectLocation(locationId);
         }
@@ -175,6 +189,7 @@ public class LocationListAdapter extends RecyclerView.Adapter<LocationViewHolder
         if (animate) holder.check.playAnimation();
         else holder.check.setProgress(CHECK_FRAME_SELECTED);
     }
+
     private void markViewHolderAsUnchecked(@NonNull LocationViewHolder holder) {
         holder.itemContainer.setSelected(false);
         holder.check.setVisibility(View.GONE);

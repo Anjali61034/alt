@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Context.RECEIVER_NOT_EXPORTED
 import android.content.Intent
 import android.content.IntentFilter
 import android.location.LocationManager
@@ -107,7 +108,11 @@ abstract class BaseFragment : Fragment() {
 
     @SuppressLint("UnspecifiedRegisterReceiverFlag")
     private fun registerReceiver() {
-        requireActivity().registerReceiver(receiver, filter)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requireActivity().registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
+        } else {
+            requireActivity().registerReceiver(receiver, filter)
+        }
     }
 
     private fun unregisterReceiver() {

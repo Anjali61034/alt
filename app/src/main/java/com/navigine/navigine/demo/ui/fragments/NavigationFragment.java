@@ -2,6 +2,8 @@ package com.navigine.navigine.demo.ui.fragments;
 
 import static android.view.View.GONE;
 import static android.view.View.VISIBLE;
+import android.os.Build;
+import android.content.Context;
 import static com.navigine.navigine.demo.service.NavigationService.ACTION_POSITION_ERROR;
 import static com.navigine.navigine.demo.service.NavigationService.ACTION_POSITION_UPDATED;
 import static com.navigine.navigine.demo.utils.Constants.CIRCULAR_PROGRESS_DELAY_HIDE;
@@ -823,10 +825,15 @@ public class NavigationFragment extends BaseFragment{
         mPositionReceiverFilter.addAction(ACTION_POSITION_ERROR);
     }
 
-    @SuppressLint("UnspecifiedRegisterReceiverFlag")
     private void addListeners() {
-        requireActivity().registerReceiver(mStateReceiver, mStateReceiverFilter);
-        requireActivity().registerReceiver(mPositionReceiver, mPositionReceiverFilter);
+        // Fix for Android 14+ broadcast receiver registration
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requireActivity().registerReceiver(mStateReceiver, mStateReceiverFilter, Context.RECEIVER_NOT_EXPORTED);
+            requireActivity().registerReceiver(mPositionReceiver, mPositionReceiverFilter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            ContextCompat.registerReceiver(requireActivity(), mStateReceiver, mStateReceiverFilter, ContextCompat.RECEIVER_NOT_EXPORTED);
+            ContextCompat.registerReceiver(requireActivity(), mPositionReceiver, mPositionReceiverFilter, ContextCompat.RECEIVER_NOT_EXPORTED);
+        }
 
         NavigineSdkManager.RouteManager.addRouteListener(mRouteListener);
     }
@@ -1409,7 +1416,7 @@ public class NavigationFragment extends BaseFragment{
     }
 
     private void unselectVenueIcon(VenueIconObj venueIconObj) {
-        mFilteredVenueIconsList.get(mFilteredVenueIconsList.indexOf(venueIconObj)).isActivated = false;
+        mFilteredVenueIconsList.get(mFilteredVenueIconsList.indexOf(venueIconObj)).setActivated(false);
     }
 
     private List<VenueIconObj> getFilteredVenuesIconsList() {

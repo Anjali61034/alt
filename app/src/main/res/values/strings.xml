@@ -32,7 +32,7 @@
     <string name="dialog_action_ok">ok</string>
     <string name="dialog_action_understand">understand</string>
     <!--    no location layout-->
-    <string name="no_location_title">No location</string>
+    <string name="no_location_title">Location Not Available </string>
     <string name="no_location_subtitle">You have to choose map in locations\n tab to work in this mode</string>
     <string name="no_location_btn_title">Choose map</string>
     <!--    debug-->
@@ -137,7 +137,7 @@ For push notifications, the application has to work in background mode</string>
     <string name="net_get_key_avatar">avatar_url</string>
     <string name="net_response_key_company">company</string>
     <!--    navigation service-->
-    <string name="navigation_service_name">navigine; Service</string>
+    <string name="navigation_service_name">Canary Service</string>
     <string name="server_correct">The server is correct</string>
     <!--    sheet route finish-->
     <string name="sheet_route_finish_title">You have reached your destination</string>

@@ -6,6 +6,7 @@ import android.os.Parcelable.Creator
 import java.util.Objects
 
 class VenueIconObj : Parcelable {
+    var activated: Boolean = false
     var imageDrawable: Int = -1
         private set
     var categoryName: String? = null
