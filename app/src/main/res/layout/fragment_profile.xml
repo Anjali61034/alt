@@ -5,58 +5,41 @@
     android:id="@+id/profile__main_view"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:animateLayoutChanges="true"
-    android:paddingHorizontal="@dimen/screen_padding">
+    android:background="@android:color/white"
+    android:paddingHorizontal="24dp"
+    android:paddingTop="40dp">
 
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/profile__card"
-        android:layout_width="0dp"
-        android:layout_height="@dimen/profile_avatar_card_height"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
-
-        <com.google.android.material.imageview.ShapeableImageView
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="@drawable/ic_card_avatar" />
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
-
-
+    <!-- Avatar Section - Left aligned -->
     <com.facebook.shimmer.ShimmerFrameLayout
         android:id="@+id/profile__user_image_shimmer"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        app:layout_constraintEnd_toEndOf="@id/profile__card"
-        app:layout_constraintStart_toStartOf="@id/profile__card"
-        app:layout_constraintTop_toTopOf="@id/profile__card"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
         app:shimmer_colored="true"
         app:shimmer_highlight_color="@color/colorPrimaryLight">
 
         <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/profile__user_image"
-            android:layout_width="@dimen/profile_avatar_size"
-            android:layout_height="@dimen/profile_avatar_size"
-            android:layout_marginTop="80dp"
-            android:background="@color/colorPrimaryLight"
-            android:elevation="1dp"
-            android:padding="5dp"
+            android:layout_width="120dp"
+            android:layout_height="120dp"
+            android:background="@color/colorPrimary"
+            android:padding="8dp"
             android:src="@drawable/ic_avatar_mock"
-            app:contentPadding="16dp"
-            app:shapeAppearanceOverlay="@style/AppTheme.Profile.Avatar"
-            app:strokeColor="@color/colorBackground"
-            app:strokeWidth="5dp" />
+            app:contentPadding="8dp"
+            app:shapeAppearance="@style/ShapeAppearance.Material3.Corner.Full" />
 
     </com.facebook.shimmer.ShimmerFrameLayout>
 
+    <!-- User Name Section - To the right of avatar -->
     <com.facebook.shimmer.ShimmerFrameLayout
         android:id="@+id/profile__user_name_shimmer"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/profile__user_image_shimmer"
+        app:layout_constraintStart_toEndOf="@id/profile__user_image_shimmer"
+        app:layout_constraintTop_toTopOf="@id/profile__user_image_shimmer"
         app:shimmer_colored="true"
         app:shimmer_highlight_color="@color/colorPrimaryLight">
 
@@ -64,138 +47,79 @@
             android:id="@+id/profile__user_name"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:fontFamily="@font/circe_bold"
-            android:textSize="20sp" />
+            android:fontFamily="sans-serif-medium"
+            android:textColor="@android:color/black"
+            android:textSize="26sp"
+            tools:text="Arjel" />
 
     </com.facebook.shimmer.ShimmerFrameLayout>
 
+    <!-- User Email Section - Below name, aligned with name -->
     <com.facebook.shimmer.ShimmerFrameLayout
         android:id="@+id/profile__info_shimmer"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        app:layout_constraintBottom_toBottomOf="parent"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="4dp"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/profile__user_name_shimmer"
-        app:layout_constraintVertical_bias="0"
+        app:layout_constraintStart_toEndOf="@id/profile__user_image_shimmer"
+        app:layout_constraintTop_toBottomOf="@id/profile__user_name_shimmer"
         app:shimmer_colored="true"
         app:shimmer_highlight_color="@color/colorPrimaryLight">
 
-        <LinearLayout
-            android:layout_width="match_parent"
+        <TextView
+            android:id="@+id/profile__user_email"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:orientation="vertical"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/profile__user_name"
-            app:layout_constraintVertical_bias="0">
+            android:fontFamily="sans-serif"
+            android:textColor="@android:color/darker_gray"
+            android:textSize="20sp"
+            tools:text="arjel@gmail.com" />
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/profile_info_height"
-                android:background="@drawable/bg_rounded"
-                android:gravity="start|center"
-                android:orientation="horizontal"
-                android:paddingHorizontal="16dp"
-                android:paddingVertical="10dp"
-                android:weightSum="1">
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight=".9"
-                    android:orientation="vertical">
-
-                    <TextView
-                        style="@style/AppTheme.Profile.Info.Title"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/profile_user" />
-
-                    <TextView
-                        android:id="@+id/profile__user_hash"
-                        style="@style/AppTheme.Profile.Info.Content"
-                        android:clickable="true"
-                        android:focusable="true"
-                        tools:text="D038-9DA9-FE5B-E310" />
-
-                </LinearLayout>
-
-                <ImageButton
-                    android:id="@+id/profile__copy"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight=".1"
-                    android:background="@android:color/transparent"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:src="@drawable/ic_copy"
-                    android:tooltipText="copy" />
-
-
-            </LinearLayout>
-
-            <Space
-                android:layout_width="match_parent"
-                android:layout_height="12dp" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/profile_info_height"
-                android:background="@drawable/bg_rounded"
-                android:gravity="start|center"
-                android:orientation="vertical"
-                android:paddingHorizontal="16dp"
-                android:paddingVertical="10dp">
-
-                <TextView
-                    style="@style/AppTheme.Profile.Info.Title"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/profile_company" />
-
-                <TextView
-                    android:id="@+id/profile__user_company"
-                    style="@style/AppTheme.Profile.Info.Content"
-
-                    android:clickable="true"
-                    android:focusable="true"
-                    tools:text="Navigine" />
-
-            </LinearLayout>
-
-            <Space
-                android:layout_width="match_parent"
-                android:layout_height="12dp" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/profile_info_height"
-                android:background="@drawable/bg_rounded"
-                android:gravity="start|center"
-                android:orientation="vertical"
-                android:paddingHorizontal="16dp"
-                android:paddingVertical="10dp">
-
-
-                <TextView
-                    style="@style/AppTheme.Profile.Info.Title"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/profile_email" />
-
-                <TextView
-                    android:id="@+id/profile__user_email"
-                    style="@style/AppTheme.Profile.Info.Content"
-                    android:clickable="true"
-                    android:focusable="true"
-                    tools:text="alexkonst@navigine.com" />
-
-            </LinearLayout>
-
-        </LinearLayout>
     </com.facebook.shimmer.ShimmerFrameLayout>
+
+    <!-- Trusted Contacts Section - Below the user info section -->
+    <LinearLayout
+        android:id="@+id/profile__trusted_contacts"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="48dp"
+        android:background="?android:attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingVertical="16dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/profile__user_image_shimmer">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:fontFamily="sans-serif"
+            android:text="Trusted Contacts"
+            android:textColor="@android:color/black"
+            android:textSize="20sp" />
+
+        <ImageView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:src="@android:drawable/ic_menu_more"
+            android:rotation="270"
+            app:tint="@android:color/darker_gray" />
+
+    </LinearLayout>
+
+    <!-- Divider -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@android:color/darker_gray"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/profile__trusted_contacts" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

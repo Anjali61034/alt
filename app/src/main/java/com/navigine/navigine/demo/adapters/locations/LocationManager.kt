@@ -39,6 +39,7 @@ class LocationManager(private val context: Context) {
         // Load KML data from raw resources
         loadLocationsFromKml("st_stephens_boundary") // First polygon
         loadLocationsFromKml("delhi_high_court") // Second polygon
+        loadLocationsFromKml("cure_india") // Third polygon
     }
 
     private fun loadLocationsFromKml(resourceName: String) {
@@ -98,6 +99,10 @@ class LocationManager(private val context: Context) {
                                             }
                                             "St Stephens Hospital" -> {
                                                 id = 1890
+                                                isCanaryConnected = true
+                                            }
+                                            "Cure India", "CURE India" -> {
+                                                id = 2183
                                                 isCanaryConnected = true
                                             }
                                             else -> {

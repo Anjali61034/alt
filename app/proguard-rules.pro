@@ -19,3 +19,12 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Keep Navigine SDK classes
+-keep class com.navigine.** { *; }
+-dontwarn com.navigine.**
+
+# Keep Firebase classes
+-keep class com.google.firebase.** { *; }
+-dontwarn com.google.firebase.**
+

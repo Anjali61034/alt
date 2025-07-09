@@ -2,6 +2,8 @@ package com.navigine.navigine.demo.ui.activities;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.lifecycle.ViewModelProvider;
@@ -80,17 +82,8 @@ public class MainActivity extends AppCompatActivity {
         // Get user credentials from intent or Firebase
         getUserCredentialsFromLogin();
 
-        // Initialize Navigine SDK only after successful authentication
-        if (initializeSdk()) {
-            Log.d(TAG, "SDK initialized successfully");
-            initViewModel();
-            initNavigationView();
-            startNavigationService();
-            useLocation();
-            isAppInitialized = true;
-        } else {
-            Log.e(TAG, "Failed to initialize Navigine SDK");
-        }
+        // Initialize SDK with delay to prevent stack overflow
+        initializeSdk();
     }
 
     @Override
@@ -163,28 +156,41 @@ public class MainActivity extends AppCompatActivity {
         Log.d(TAG, "UserSession set - Hash: " + UserSession.USER_HASH + ", Email: " + UserSession.USER_EMAIL);
     }
 
-    private boolean initializeSdk() {
+    private void initializeSdk() {
         Log.d(TAG, "initializeSdk() called");
 
-        try {
-            if (UserSession.USER_HASH == null || UserSession.USER_HASH.isEmpty()) {
-                Log.e(TAG, "User hash not available");
-                return false;
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            try {
+                if (UserSession.USER_HASH == null || UserSession.USER_HASH.isEmpty()) {
+                    Log.e(TAG, "User hash not available");
+                    return;
+                }
+
+
+                // NavigineSdk sdk = NavigineSdk.getInstance();
+               // sdk.setUserHash(UserSession.USER_HASH);
+              //  sdk.setServer(UserSession.LOCATION_SERVER);
+
+                Log.d(TAG, "SDK configured with hash: " + UserSession.USER_HASH);
+
+                // Just initialize the SDK managers
+                boolean result = NavigineSdkManager.initializeSdk();
+                Log.d(TAG, "NavigineSdkManager.initializeSdk() result: " + result);
+
+                if (result) {
+                    Log.d(TAG, "SDK initialized successfully");
+                    initViewModel();
+                    initNavigationView();
+                    startNavigationService();
+                    useLocation();
+                    isAppInitialized = true;
+                } else {
+                    Log.e(TAG, "Failed to initialize Navigine SDK");
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to initialize SDK: " + e.getMessage(), e);
             }
-
-            NavigineSdk sdk = NavigineSdk.getInstance();
-            sdk.setUserHash(UserSession.USER_HASH);
-            sdk.setServer(UserSession.LOCATION_SERVER);
-
-            Log.d(TAG, "SDK configured with hash: " + UserSession.USER_HASH);
-
-            boolean result = NavigineSdkManager.initializeSdk();
-            Log.d(TAG, "NavigineSdkManager.initializeSdk() result: " + result);
-            return result;
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to initialize SDK: " + e.getMessage(), e);
-            return false;
-        }
+        }, 2000); // Increased delay to 2 seconds
     }
 
     private void initViewModel() {

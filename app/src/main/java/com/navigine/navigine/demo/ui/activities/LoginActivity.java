@@ -1,14 +1,19 @@
 package com.navigine.navigine.demo.ui.activities;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 
 import com.navigine.navigine.demo.R;
 import com.navigine.navigine.demo.databinding.ActivityLoginBinding;
@@ -39,6 +44,7 @@ public class LoginActivity extends AppCompatActivity {
 
         binding = ActivityLoginBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        requestBluetoothPermissions();
 
         firebaseAuth = FirebaseAuth.getInstance();
 
@@ -60,7 +66,6 @@ public class LoginActivity extends AppCompatActivity {
                 Toast.makeText(LoginActivity.this, "Empty Fields Are not Allowed !!", Toast.LENGTH_SHORT).show();
             }
         });
-
 
         // Sign Up prompt
         binding.signUpPromptTextView.setOnClickListener(view -> {
@@ -86,6 +91,27 @@ public class LoginActivity extends AppCompatActivity {
         });
 
         binding.btnGoogleLogin.setOnClickListener(view -> signInWithGoogle());
+    }
+
+    private void requestBluetoothPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            String[] permissions = {
+                    Manifest.permission.BLUETOOTH_SCAN,
+                    Manifest.permission.BLUETOOTH_CONNECT,
+                    Manifest.permission.BLUETOOTH_ADVERTISE,
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+            };
+            ActivityCompat.requestPermissions(this, permissions, 100);
+        } else {
+            String[] permissions = {
+                    Manifest.permission.BLUETOOTH,
+                    Manifest.permission.BLUETOOTH_ADMIN,
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+            };
+            ActivityCompat.requestPermissions(this, permissions, 100);
+        }
     }
 
     private void signInWithGoogle() {
@@ -116,24 +142,24 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     private void navigateToMainActivity(String email, String name) {
-        Intent intent = new Intent(LoginActivity.this, MainActivity.class);
-        intent.putExtra("email", email);
-        intent.putExtra("name", name);
-        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-        startActivity(intent);
-        finish(); // Important: finish LoginActivity so user can't go back
+        // Add delay before navigation to prevent SDK initialization issues
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+            intent.putExtra("email", email);
+            intent.putExtra("name", name);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            finish(); // Important: finish LoginActivity so user can't go back
+        }, 500); // 500ms delay
     }
 
     @Override
     protected void onStart() {
         super.onStart();
         // Check if user is already logged in
-        if (firebaseAuth.getCurrentUser() != null) {
-            // User already logged in, go to MainActivity
-            navigateToMainActivity(
-                    firebaseAuth.getCurrentUser().getEmail(),
-                    firebaseAuth.getCurrentUser().getDisplayName()
-            );
+        firebaseAuth.signOut();
+        if (googleSignInClient != null) {
+            googleSignInClient.signOut();
         }
     }
 }

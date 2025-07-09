@@ -45,6 +45,8 @@ import com.google.android.material.textview.MaterialTextView;
 import com.navigine.navigine.demo.R;
 import com.navigine.navigine.demo.models.UserSession;
 import com.navigine.navigine.demo.utils.DimensionUtils;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -54,6 +56,7 @@ import java.util.Locale;
 public class ProfileFragment extends Fragment
 {
     private ClipboardManager mClipboardManager = null;
+    private FirebaseAuth mFirebaseAuth = null;
 
     private static final int AVATAR_PADDING = (int) DimensionUtils.pxFromDp(16);
     private static final int SNACK_DURATION = 500;
@@ -61,10 +64,8 @@ public class ProfileFragment extends Fragment
     private Window             mWindow         = null;
     private ShapeableImageView mUserImage      = null;
     private MaterialTextView   mUserNameTv     = null;
-    private TextView           mUserHashTv     = null;
-    private TextView           mUserCompanyTv  = null;
     private TextView           mUserEmailTv    = null;
-    private ImageView          mCopyIv         = null;
+    private View               mTrustedContactsView = null;
     private ShimmerFrameLayout mShimmerAvatar  = null;
     private ShimmerFrameLayout mShimmerName    = null;
     private ShimmerFrameLayout mShimmerInfo    = null;
@@ -75,6 +76,7 @@ public class ProfileFragment extends Fragment
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mClipboardManager = (ClipboardManager) requireActivity().getSystemService(Context.CLIPBOARD_SERVICE);
+        mFirebaseAuth = FirebaseAuth.getInstance();
         createUserInfoRequest();
     }
 
@@ -101,16 +103,14 @@ public class ProfileFragment extends Fragment
     }
 
     private void initViews(View view) {
-        mWindow        = requireActivity().getWindow();
-        mUserImage     = view.findViewById(R.id.profile__user_image);
-        mUserNameTv    = view.findViewById(R.id.profile__user_name);
-        mUserHashTv    = view.findViewById(R.id.profile__user_hash);
-        mUserCompanyTv = view.findViewById(R.id.profile__user_company);
-        mUserEmailTv   = view.findViewById(R.id.profile__user_email);
-        mCopyIv        = view.findViewById(R.id.profile__copy);
-        mShimmerAvatar = view.findViewById(R.id.profile__user_image_shimmer);
-        mShimmerName   = view.findViewById(R.id.profile__user_name_shimmer);
-        mShimmerInfo   = view.findViewById(R.id.profile__info_shimmer);
+        mWindow                 = requireActivity().getWindow();
+        mUserImage              = view.findViewById(R.id.profile__user_image);
+        mUserNameTv             = view.findViewById(R.id.profile__user_name);
+        mUserEmailTv            = view.findViewById(R.id.profile__user_email);
+        mTrustedContactsView    = view.findViewById(R.id.profile__trusted_contacts);
+        mShimmerAvatar          = view.findViewById(R.id.profile__user_image_shimmer);
+        mShimmerName            = view.findViewById(R.id.profile__user_name_shimmer);
+        mShimmerInfo            = view.findViewById(R.id.profile__info_shimmer);
     }
 
     private void setViewsParams() {
@@ -120,14 +120,15 @@ public class ProfileFragment extends Fragment
     }
 
     private void setViewsListeners() {
-        mCopyIv.setOnClickListener(v -> {
-            onCopyData();
-            showMessage(v, v, getString(R.string.profile_copy), SNACK_DURATION, R.color.colorPrimary, android.R.color.transparent);
+        mTrustedContactsView.setOnClickListener(v -> {
+            // Handle trusted contacts click
+            // You can implement navigation to trusted contacts screen here
+            showMessage(v, v, "Trusted Contacts", SNACK_DURATION, R.color.colorPrimary, android.R.color.transparent);
         });
     }
 
     private void updateStatusBar() {
-        mWindow.setStatusBarColor(ContextCompat.getColor(requireActivity(), R.color.colorBackground));
+        mWindow.setStatusBarColor(ContextCompat.getColor(requireActivity(), android.R.color.white));
     }
 
     private void createUserInfoRequest() {
@@ -143,17 +144,33 @@ public class ProfileFragment extends Fragment
     }
 
     private void onCopyData() {
-        ClipData data = ClipData.newPlainText("user hash", mUserHashTv.getText());
+        ClipData data = ClipData.newPlainText("user email", mUserEmailTv.getText());
         mClipboardManager.setPrimaryClip(data);
     }
 
     private void showMessage(View v, @Nullable View anchorView, String msg, int duration, int textColorRes, int bgColorRes) {
         Snackbar snackCopy = Snackbar.make(v, msg, duration);
         View snackView = snackCopy.getView();
-        TextView snackTv = snackView.findViewById(com.google.android.material.R.id.snackbar_text);
-        snackTv.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_END);
-        snackTv.setTextColor(ContextCompat.getColor(requireActivity(), textColorRes));
-        snackTv.setTextSize(16);
+
+        // Try to find TextView by traversing the view hierarchy
+        TextView snackTv = null;
+        if (snackView instanceof ViewGroup) {
+            ViewGroup viewGroup = (ViewGroup) snackView;
+            for (int i = 0; i < viewGroup.getChildCount(); i++) {
+                View child = viewGroup.getChildAt(i);
+                if (child instanceof TextView) {
+                    snackTv = (TextView) child;
+                    break;
+                }
+            }
+        }
+
+        if (snackTv != null) {
+            snackTv.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_END);
+            snackTv.setTextColor(ContextCompat.getColor(requireActivity(), textColorRes));
+            snackTv.setTextSize(16);
+        }
+
         snackCopy.setAnimationMode(BaseTransientBottomBar.ANIMATION_MODE_FADE);
         snackCopy.setAnchorView(anchorView);
         snackView.setBackgroundColor(ContextCompat.getColor(requireActivity(), bgColorRes));
@@ -189,16 +206,51 @@ public class ProfileFragment extends Fragment
     }
 
     private void updateProfileInfo() {
-        mUserNameTv.   setText(UserSession.USER_NAME);
-        mUserHashTv.   setText(UserSession.USER_HASH);
-        mUserCompanyTv.setText(UserSession.USER_COMPANY);
-        mUserEmailTv.  setText(UserSession.USER_EMAIL);
+        // Get user info from Firebase Auth (works for both Google and email/password login)
+        FirebaseUser currentUser = mFirebaseAuth.getCurrentUser();
+        if (currentUser != null) {
+            // Use Firebase Auth data for name and email
+            String displayName = currentUser.getDisplayName();
+            String email = currentUser.getEmail();
+
+            // Set name - use display name if available, otherwise use email prefix
+            if (displayName != null && !displayName.isEmpty()) {
+                mUserNameTv.setText(displayName);
+            } else if (email != null && !email.isEmpty()) {
+                // Extract name from email (part before @)
+                String nameFromEmail = email.substring(0, email.indexOf('@'));
+                mUserNameTv.setText(nameFromEmail);
+            } else {
+                mUserNameTv.setText(UserSession.USER_NAME); // Fallback to session data
+            }
+
+            // Set email
+            if (email != null && !email.isEmpty()) {
+                mUserEmailTv.setText(email);
+            } else {
+                mUserEmailTv.setText(UserSession.USER_EMAIL); // Fallback to session data
+            }
+        } else {
+            // Fallback to session data if Firebase user is not available
+            mUserNameTv.setText(UserSession.USER_NAME);
+            mUserEmailTv.setText(UserSession.USER_EMAIL);
+        }
     }
 
     private void updateAvatar() {
+        // Try to get avatar from Firebase Auth first (Google login)
+        FirebaseUser currentUser = mFirebaseAuth.getCurrentUser();
+        String avatarUrl = null;
+
+        if (currentUser != null && currentUser.getPhotoUrl() != null) {
+            avatarUrl = currentUser.getPhotoUrl().toString();
+        } else if (UserSession.USER_AVATAR_URL != null && !UserSession.USER_AVATAR_URL.isEmpty()) {
+            avatarUrl = UserSession.USER_AVATAR_URL;
+        }
+
         Glide
                 .with(requireActivity())
-                .load(UserSession.USER_AVATAR_URL)
+                .load(avatarUrl)
                 .apply(RequestOptions.circleCropTransform().diskCacheStrategy(DiskCacheStrategy.DATA).skipMemoryCache(false))
                 .placeholder(R.drawable.ic_avatar_mock)
                 .transition(DrawableTransitionOptions.withCrossFade())
