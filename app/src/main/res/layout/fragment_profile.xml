@@ -21,8 +21,8 @@
 
         <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/profile__user_image"
-            android:layout_width="120dp"
-            android:layout_height="120dp"
+            android:layout_width="110dp"
+            android:layout_height="110dp"
             android:background="@color/colorPrimary"
             android:padding="8dp"
             android:src="@drawable/ic_avatar_mock"
@@ -31,7 +31,7 @@
 
     </com.facebook.shimmer.ShimmerFrameLayout>
 
-    <!-- User Name Section - To the right of avatar -->
+    <!-- User Name Section - Centered vertically with avatar -->
     <com.facebook.shimmer.ShimmerFrameLayout
         android:id="@+id/profile__user_name_shimmer"
         android:layout_width="0dp"
@@ -40,6 +40,8 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@id/profile__user_image_shimmer"
         app:layout_constraintTop_toTopOf="@id/profile__user_image_shimmer"
+        app:layout_constraintBottom_toBottomOf="@id/profile__user_image_shimmer"
+        app:layout_constraintVertical_bias="0.3"
         app:shimmer_colored="true"
         app:shimmer_highlight_color="@color/colorPrimaryLight">
 
@@ -49,12 +51,12 @@
             android:layout_height="wrap_content"
             android:fontFamily="sans-serif-medium"
             android:textColor="@android:color/black"
-            android:textSize="26sp"
+            android:textSize="22sp"
             tools:text="Arjel" />
 
     </com.facebook.shimmer.ShimmerFrameLayout>
 
-    <!-- User Email Section - Below name, aligned with name -->
+    <!-- User Email Section - Below name -->
     <com.facebook.shimmer.ShimmerFrameLayout
         android:id="@+id/profile__info_shimmer"
         android:layout_width="0dp"
@@ -73,7 +75,7 @@
             android:layout_height="wrap_content"
             android:fontFamily="sans-serif"
             android:textColor="@android:color/darker_gray"
-            android:textSize="20sp"
+            android:textSize="12sp"
             tools:text="arjel@gmail.com" />
 
     </com.facebook.shimmer.ShimmerFrameLayout>
@@ -89,7 +91,7 @@
         android:focusable="true"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingVertical="16dp"
+        android:paddingVertical="0dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/profile__user_image_shimmer">
@@ -107,8 +109,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:src="@android:drawable/ic_menu_more"
-            android:rotation="270"
+            android:src="@drawable/ic_arrow_right_outline"
             app:tint="@android:color/darker_gray" />
 
     </LinearLayout>

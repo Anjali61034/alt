@@ -42,6 +42,7 @@
         android:id="@+id/no_location__button_choose_map"
         style="@style/AppTheme.Button.Blue"
         android:text="@string/no_location_btn_title"
+        android:textColor="@android:color/black"
         android:textAllCaps="false"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
