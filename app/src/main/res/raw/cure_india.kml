@@ -2,7 +2,7 @@
 <kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2" xmlns:kml="http://www.opengis.net/kml/2.2" xmlns:atom="http://www.w3.org/2005/Atom">
 <Document id="1cIj0M5jdvhXMKkepr8joC16DkAMOw5vT">
 	<name>cure_india</name>
-	<gx:CascadingStyle kml:id="__managed_style_262A643C583919491CE8">
+	<gx:CascadingStyle kml:id="__managed_style_241105D560392DD103F7">
 		<Style>
 			<IconStyle>
 				<scale>1.2</scale>
@@ -24,7 +24,7 @@
 			</BalloonStyle>
 		</Style>
 	</gx:CascadingStyle>
-	<gx:CascadingStyle kml:id="__managed_style_1192D552D23919491CE8">
+	<gx:CascadingStyle kml:id="__managed_style_1B6D7376B0392DD103F7">
 		<Style>
 			<IconStyle>
 				<Icon>
@@ -45,40 +45,40 @@
 			</BalloonStyle>
 		</Style>
 	</gx:CascadingStyle>
-	<gx:CascadingStyle kml:id="__managed_style_5C333E80DE391947E674">
-		<Style>
-			<IconStyle>
-				<scale>1.2</scale>
-				<Icon>
-					<href>https://earth.google.com/earth/document/icon?color=fbc02d&amp;id=2000&amp;scale=4</href>
-				</Icon>
-				<hotSpot x="64" y="128" xunits="pixels" yunits="insetPixels"/>
-			</IconStyle>
-			<LabelStyle>
-			</LabelStyle>
-			<LineStyle>
-				<color>ff2dc0fb</color>
-				<width>2.66667</width>
-			</LineStyle>
-			<PolyStyle>
-				<color>40ffffff</color>
-			</PolyStyle>
-			<BalloonStyle>
-				<gx:displayMode>card</gx:displayMode>
-			</BalloonStyle>
-		</Style>
-	</gx:CascadingStyle>
-	<StyleMap id="__managed_style_0F9E2E65A53919491CE8">
+	<StyleMap id="__managed_style_08D719136E392DD103F7">
 		<Pair>
 			<key>normal</key>
-			<styleUrl>#__managed_style_1192D552D23919491CE8</styleUrl>
+			<styleUrl>#__managed_style_1B6D7376B0392DD103F7</styleUrl>
 		</Pair>
 		<Pair>
 			<key>highlight</key>
-			<styleUrl>#__managed_style_262A643C583919491CE8</styleUrl>
+			<styleUrl>#__managed_style_241105D560392DD103F7</styleUrl>
 		</Pair>
 	</StyleMap>
-	<gx:CascadingStyle kml:id="__managed_style_49B4938A28391947E674">
+	<gx:CascadingStyle kml:id="__managed_style_53403AB067392DD103F7">
+		<Style>
+			<IconStyle>
+				<scale>1.2</scale>
+				<Icon>
+					<href>https://earth.google.com/earth/document/icon?color=fbc02d&amp;id=2000&amp;scale=4</href>
+				</Icon>
+				<hotSpot x="64" y="128" xunits="pixels" yunits="insetPixels"/>
+			</IconStyle>
+			<LabelStyle>
+			</LabelStyle>
+			<LineStyle>
+				<color>ff2dc0fb</color>
+				<width>2.66667</width>
+			</LineStyle>
+			<PolyStyle>
+				<color>40ffffff</color>
+			</PolyStyle>
+			<BalloonStyle>
+				<gx:displayMode>card</gx:displayMode>
+			</BalloonStyle>
+		</Style>
+	</gx:CascadingStyle>
+	<gx:CascadingStyle kml:id="__managed_style_4C1E867AB5392DD103F7">
 		<Style>
 			<IconStyle>
 				<Icon>
@@ -100,14 +100,14 @@
 			</BalloonStyle>
 		</Style>
 	</gx:CascadingStyle>
-	<StyleMap id="__managed_style_351EA15CF4391947E674">
+	<StyleMap id="__managed_style_3EABD49DEC392DD103F7">
 		<Pair>
 			<key>normal</key>
-			<styleUrl>#__managed_style_49B4938A28391947E674</styleUrl>
+			<styleUrl>#__managed_style_4C1E867AB5392DD103F7</styleUrl>
 		</Pair>
 		<Pair>
 			<key>highlight</key>
-			<styleUrl>#__managed_style_5C333E80DE391947E674</styleUrl>
+			<styleUrl>#__managed_style_53403AB067392DD103F7</styleUrl>
 		</Pair>
 	</StyleMap>
 	<Placemark id="0D16D87732391947E663">
@@ -124,7 +124,7 @@
 			<range>914.4897268284809</range>
 			<altitudeMode>relativeToGround</altitudeMode>
 		</LookAt>
-		<styleUrl>#__managed_style_351EA15CF4391947E674</styleUrl>
+		<styleUrl>#__managed_style_3EABD49DEC392DD103F7</styleUrl>
 		<Point>
 			<altitudeMode>relativeToGround</altitudeMode>
 			<coordinates>77.21198339999999,28.5550254,0</coordinates>
@@ -142,12 +142,12 @@
 			<range>195.0089505365031</range>
 			<altitudeMode>absolute</altitudeMode>
 		</LookAt>
-		<styleUrl>#__managed_style_0F9E2E65A53919491CE8</styleUrl>
+		<styleUrl>#__managed_style_08D719136E392DD103F7</styleUrl>
 		<Polygon>
 			<outerBoundaryIs>
 				<LinearRing>
 					<coordinates>
-						77.21208943484932,28.55501076508278,0 77.21200895520697,28.55508800959991,0 77.21188445861995,28.55499023898088,0 77.21196507147108,28.55491428231781,0 77.21208943484932,28.55501076508278,0 
+						77.21223756840953,28.55512335084669,0 77.212134201315,28.5552147415548,0 77.21200280345492,28.5551073100244,0 77.21183544687723,28.55497861463376,0 77.21192760741059,28.55488015404033,0 77.21207856846691,28.55500903775652,0 77.21217165837507,28.55491885644924,0 77.2123197003263,28.55504661872903,0 77.21223756840953,28.55512335084669,0 
 					</coordinates>
 				</LinearRing>
 			</outerBoundaryIs>

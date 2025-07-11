@@ -62,6 +62,7 @@
 
 
         <activity android:name=".ui.activities.MainActivity" />
+        <activity android:name="com.navigine.navigine.demo.ui.activities.SearchActivity" />
 
         <service
             android:name=".service.NavigationService"

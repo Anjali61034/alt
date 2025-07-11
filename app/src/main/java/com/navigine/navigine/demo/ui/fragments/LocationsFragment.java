@@ -3,7 +3,6 @@ package com.navigine.navigine.demo.ui.fragments;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
 import android.location.Address;
 import android.location.Geocoder;
 import android.os.Build;
@@ -42,6 +41,7 @@ import com.navigine.navigine.demo.adapters.locations.LocationManager;
 
 import com.navigine.navigine.demo.databinding.FragmentLocationsBinding;
 import com.navigine.navigine.demo.utils.NavigineSdkManager;
+import com.navigine.navigine.demo.ui.activities.SearchActivity;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -132,6 +132,12 @@ public class LocationsFragment extends Fragment implements OnMapReadyCallback {
         requestLocationPermissions();
         setupMicButton();
         setupSuggestionCards();
+
+
+        // Add this in onViewCreated method
+        binding.searchView.setOnClickListener(v -> {
+            launchSearchActivity();
+        });
     }
 
     private void setupSuggestionCards() {
@@ -240,10 +246,12 @@ public class LocationsFragment extends Fragment implements OnMapReadyCallback {
                     Log.e(TAG, "Failed to load location " + locationId + ": " + error.getMessage());
                     loadingLocations.put(locationId, false);
 
-                    // Fallback to default suggestions
-                    requireActivity().runOnUiThread(() -> {
-                        setDefaultSuggestions();
-                    });
+                    // Only fallback if we haven't already loaded venues successfully
+                    if (currentVenues.isEmpty()) {
+                        requireActivity().runOnUiThread(() -> {
+                            setDefaultSuggestions();
+                        });
+                    }
                 }
 
                 @Override
@@ -577,6 +585,28 @@ public class LocationsFragment extends Fragment implements OnMapReadyCallback {
         } catch (Exception e) {
             Log.e(TAG, "Error loading location list: " + e.getMessage());
         }
+    }
+
+    private void launchSearchActivity() {
+        Intent intent = new Intent(getContext(), SearchActivity.class);
+        intent.putExtra(SearchActivity.EXTRA_IS_CANARY_CONNECTED, isCanaryConnected);
+
+        if (isCanaryConnected && !currentVenues.isEmpty()) {
+            // Since Venue might not be Serializable, pass venue names as strings
+            ArrayList<String> venueNames = new ArrayList<>();
+            for (Venue venue : currentVenues) {
+                venueNames.add(venue.getName());
+            }
+            intent.putStringArrayListExtra("venue_names", venueNames);
+
+            // Also pass location info if needed
+            if (matchedLocationInfo != null) {
+                intent.putExtra("location_name", matchedLocationInfo.getName());
+                intent.putExtra("location_id", matchedLocationInfo.getId());
+            }
+        }
+
+        startActivity(intent);
     }
 
     private void startSpeechRecognition() {
