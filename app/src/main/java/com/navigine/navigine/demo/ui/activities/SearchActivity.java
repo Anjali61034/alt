@@ -25,6 +25,7 @@ import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 
 import androidx.annotation.DrawableRes;
 import androidx.appcompat.app.AppCompatActivity;
@@ -33,6 +34,7 @@ import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.cardview.widget.CardView;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.chip.Chip;
@@ -80,11 +82,27 @@ public class SearchActivity extends AppCompatActivity {
     private HorizontalScrollView          mChipsScroll               = null;
     private ChipGroup                     mChipGroup                 = null;
 
+    // Add suggestion views
+    private TextView mSuggestionsText = null;
+    private LinearLayout mSuggestionsLayout = null;
+    private CardView mSuggestionCard1 = null;
+    private CardView mSuggestionCard2 = null;
+    private CardView mSuggestionCard3 = null;
+    private CardView mSuggestionCard4 = null;
+    private TextView mSuggestionText1 = null;
+    private TextView mSuggestionText2 = null;
+    private TextView mSuggestionText3 = null;
+    private TextView mSuggestionText4 = null;
+
     private Location    mLocation    = null;
 
     private List<Venue>             mVenuesList               = new ArrayList<>();
     private List<VenueIconObj>      mFilteredVenueIconsList   = new ArrayList<>();
     private Map<Chip, VenueIconObj> mChipsMap                 = new HashMap<>();
+
+    // Add venues from intent
+    private List<String> mVenueNamesFromIntent = new ArrayList<>();
+    private boolean mIsCanaryConnected = false;
 
     private VenueListAdapter                 mVenueListAdapter       = null;
     private VenuesIconsListAdapter           mVenuesIconsListAdapter = null;
@@ -105,6 +123,12 @@ public class SearchActivity extends AppCompatActivity {
         setAdapters();
         setViewsListeners();
         setObservers();
+
+        // Get intent data
+        getIntentData();
+
+        // Set initial suggestions
+        setInitialSuggestions();
     }
 
     @Override
@@ -117,6 +141,81 @@ public class SearchActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         removeListeners();
+    }
+
+    private void getIntentData() {
+        Intent intent = getIntent();
+        mIsCanaryConnected = intent.getBooleanExtra(EXTRA_IS_CANARY_CONNECTED, false);
+
+        if (mIsCanaryConnected) {
+            mVenueNamesFromIntent = intent.getStringArrayListExtra("venue_names");
+            if (mVenueNamesFromIntent == null) {
+                mVenueNamesFromIntent = new ArrayList<>();
+            }
+            Log.d(TAG, "Received " + mVenueNamesFromIntent.size() + " venue names from intent");
+        }
+    }
+
+    private void setInitialSuggestions() {
+        if (mIsCanaryConnected && !mVenueNamesFromIntent.isEmpty()) {
+            updateSuggestionsWithVenueNames(mVenueNamesFromIntent);
+        } else {
+            setDefaultSuggestions();
+        }
+    }
+
+    private void setDefaultSuggestions() {
+        String[] defaults = {"Reception", "Office", "Hall", "Doctor"};
+        if (mSuggestionText1 != null) mSuggestionText1.setText(defaults[0]);
+        if (mSuggestionText2 != null) mSuggestionText2.setText(defaults[1]);
+        if (mSuggestionText3 != null) mSuggestionText3.setText(defaults[2]);
+        if (mSuggestionText4 != null) mSuggestionText4.setText(defaults[3]);
+    }
+
+    private void updateSuggestionsWithVenueNames(List<String> venueNames) {
+        Log.d(TAG, "Updating suggestions with " + venueNames.size() + " venue names");
+
+        if (venueNames.size() > 0) {
+            mSuggestionText1.setText(venueNames.get(0));
+            Log.d(TAG, "Set suggestion 1: " + venueNames.get(0));
+        }
+        if (venueNames.size() > 1) {
+            mSuggestionText2.setText(venueNames.get(1));
+            Log.d(TAG, "Set suggestion 2: " + venueNames.get(1));
+        } else {
+            mSuggestionText2.setText("Reception");
+        }
+        if (venueNames.size() > 2) {
+            mSuggestionText3.setText(venueNames.get(2));
+            Log.d(TAG, "Set suggestion 3: " + venueNames.get(2));
+        } else {
+            mSuggestionText3.setText("Office");
+        }
+        if (venueNames.size() > 3) {
+            mSuggestionText4.setText(venueNames.get(3));
+            Log.d(TAG, "Set suggestion 4: " + venueNames.get(3));
+        } else {
+            mSuggestionText4.setText("Hall");
+        }
+    }
+
+    private void setupSuggestionCards() {
+        try {
+            mSuggestionCard1.setOnClickListener(v -> onSuggestionCardClicked(mSuggestionText1.getText().toString()));
+            mSuggestionCard2.setOnClickListener(v -> onSuggestionCardClicked(mSuggestionText2.getText().toString()));
+            mSuggestionCard3.setOnClickListener(v -> onSuggestionCardClicked(mSuggestionText3.getText().toString()));
+            mSuggestionCard4.setOnClickListener(v -> onSuggestionCardClicked(mSuggestionText4.getText().toString()));
+        } catch (Exception e) {
+            Log.d(TAG, "Suggestion cards setup error: " + e.getMessage());
+        }
+    }
+
+    private void onSuggestionCardClicked(String venueName) {
+        if (mSearchField != null) {
+            mSearchField.setQuery(venueName, false);
+            mSearchField.setIconified(false);
+            mSearchField.requestFocus();
+        }
     }
 
     private void initViews() {
@@ -134,6 +233,18 @@ public class SearchActivity extends AppCompatActivity {
         mSearchBtnClose            = findViewById(R.id.search__search_btn_close);
         mChipsScroll               = findViewById(R.id.search__search_chips_scroll);
         mChipGroup                 = findViewById(R.id.search__search_chips_group);
+
+        // Initialize suggestion views
+        mSuggestionsText           = findViewById(R.id.suggestionsText);
+        mSuggestionsLayout         = findViewById(R.id.suggestionsLayout);
+        mSuggestionCard1           = findViewById(R.id.suggestionCard1);
+        mSuggestionCard2           = findViewById(R.id.suggestionCard2);
+        mSuggestionCard3           = findViewById(R.id.suggestionCard3);
+        mSuggestionCard4           = findViewById(R.id.suggestionCard4);
+        mSuggestionText1           = findViewById(R.id.suggestionText1);
+        mSuggestionText2           = findViewById(R.id.suggestionText2);
+        mSuggestionText3           = findViewById(R.id.suggestionText3);
+        mSuggestionText4           = findViewById(R.id.suggestionText4);
     }
 
     private void setViewsParams() {
@@ -187,6 +298,9 @@ public class SearchActivity extends AppCompatActivity {
         });
 
         mSearchBtnClose.setOnClickListener(v -> onHandleCancelSearch());
+
+        // Setup suggestion card listeners
+        setupSuggestionCards();
     }
 
     private void onHandleSearchQueryChange(String query) {
@@ -195,11 +309,13 @@ public class SearchActivity extends AppCompatActivity {
             showSearchCLoseBtn();
             hideVenueListLayout();
             showVenueIconsLayout();
+            showSuggestionsLayout();
             populateVenueIconsLayout();
         } else {
             hideSearchCLoseBtn();
             showSearchButton();
             hideVenueIconsLayout();
+            hideSuggestionsLayout();
             showVenueListLayout();
         }
         filterVenueListByQuery(query);
@@ -233,6 +349,16 @@ public class SearchActivity extends AppCompatActivity {
 
     private void hideVenueListLayout() {
         mVenueListLayout.setVisibility(GONE);
+    }
+
+    private void showSuggestionsLayout() {
+        if (mSuggestionsText != null) mSuggestionsText.setVisibility(VISIBLE);
+        if (mSuggestionsLayout != null) mSuggestionsLayout.setVisibility(VISIBLE);
+    }
+
+    private void hideSuggestionsLayout() {
+        if (mSuggestionsText != null) mSuggestionsText.setVisibility(GONE);
+        if (mSuggestionsLayout != null) mSuggestionsLayout.setVisibility(GONE);
     }
 
     private void hideSearchCLoseBtn() {
@@ -274,8 +400,26 @@ public class SearchActivity extends AppCompatActivity {
                 }
                 mVenueListAdapter.submit(mVenuesList, mLocation);
                 updateFilteredVenuesIconsList();
+
+                // Update suggestions with venues from location
+                updateSuggestionsFromLocation();
             }
         });
+    }
+
+    private void updateSuggestionsFromLocation() {
+        if (mLocation != null && !mVenuesList.isEmpty()) {
+            List<String> venueNames = new ArrayList<>();
+            for (Venue venue : mVenuesList) {
+                if (venue != null && venue.getName() != null && !venue.getName().trim().isEmpty()) {
+                    venueNames.add(venue.getName());
+                    if (venueNames.size() >= 4) break; // Limit to 4 suggestions
+                }
+            }
+            if (!venueNames.isEmpty()) {
+                updateSuggestionsWithVenueNames(venueNames);
+            }
+        }
     }
 
     private void initAdapters() {
@@ -316,6 +460,7 @@ public class SearchActivity extends AppCompatActivity {
     private void hideVenueLayouts() {
         mVenueListLayout.setVisibility(GONE);
         mVenueIconsLayout.setVisibility(GONE);
+        hideSuggestionsLayout();
     }
 
     private void onCloseSearch() {
@@ -439,9 +584,11 @@ public class SearchActivity extends AppCompatActivity {
             if (isQueryEmpty) {
                 hideVenueListLayout();
                 showVenueIconsLayout();
+                showSuggestionsLayout();
                 populateVenueIconsLayout();
             } else {
                 hideVenueIconsLayout();
+                hideSuggestionsLayout();
                 showVenueListLayout();
             }
         } else {
