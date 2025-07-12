@@ -56,7 +56,7 @@ class NavigationWorker(context: Context, workerParams: WorkerParameters) :
             Constants.NOTIFICATION_CHANNEL_ID
         )
             .setContentTitle(getApplicationContext().getString(R.string.navigation_service_name))
-            .setSmallIcon(R.drawable.ic_navigation)
+            .setSmallIcon(R.drawable.bird_icon)
             .build()
     }
 }

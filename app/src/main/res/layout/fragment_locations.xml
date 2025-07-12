@@ -5,7 +5,7 @@
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="3678dp"
         android:background="@android:color/white"
         tools:context="/LocationsFragment">
 
@@ -184,11 +184,11 @@
                     android:id="@+id/searchView"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:layout_toStartOf="@+id/micButton"
-                    android:queryHint="Search"
-                    android:iconifiedByDefault="true"
                     android:layout_marginStart="2dp"
-                    android:layout_marginEnd="2dp" />
+                    android:layout_marginEnd="2dp"
+                    android:layout_toStartOf="@+id/micButton"
+                    android:iconifiedByDefault="true"
+                    android:queryHint="Search" />
 
                 <!-- Mic Button positioned at the end -->
                 <ImageView
@@ -197,12 +197,12 @@
                     android:layout_height="48dp"
                     android:layout_alignParentEnd="true"
                     android:layout_centerVertical="true"
-                    android:contentDescription="Voice search"
-                    android:padding="12dp"
-                    android:src="@drawable/ic_mic"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:clickable="true"
-                    android:focusable="true" />
+                    android:contentDescription="Voice search"
+                    android:focusable="true"
+                    android:padding="12dp"
+                    android:src="@drawable/ic_mic" />
 
             </RelativeLayout>
         </androidx.cardview.widget.CardView>
@@ -241,7 +241,7 @@
                 android:layout_height="62dp"
                 android:layout_marginEnd="8dp"
                 android:layout_weight="1"
-                app:cardBackgroundColor="#F5F5F5"
+                app:cardBackgroundColor="#F8F4FF"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="0dp">
 
@@ -275,7 +275,7 @@
                 android:layout_height="62dp"
                 android:layout_marginEnd="8dp"
                 android:layout_weight="1"
-                app:cardBackgroundColor="#F5F5F5"
+                app:cardBackgroundColor="#F8F4FF"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="0dp">
 
@@ -309,7 +309,7 @@
                 android:layout_height="62dp"
                 android:layout_marginEnd="8dp"
                 android:layout_weight="1"
-                app:cardBackgroundColor="#F5F5F5"
+                app:cardBackgroundColor="#F8F4FF"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="0dp">
 
@@ -342,7 +342,7 @@
                 android:layout_width="0dp"
                 android:layout_height="62dp"
                 android:layout_weight="1"
-                app:cardBackgroundColor="#F5F5F5"
+                app:cardBackgroundColor="#F8F4FF"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="0dp">
 

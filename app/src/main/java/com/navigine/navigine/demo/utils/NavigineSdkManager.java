@@ -27,7 +27,15 @@ public class NavigineSdkManager {
     public static RouteManager RouteManager = null;
     public static ZoneManager ZoneManager = null;
 
+    // Initialization flag to prevent multiple initializations
+    private static boolean isSDKInitialized = false;
+
     public static synchronized boolean initializeSdk() {
+        if (isSDKInitialized) {
+            Log.d(Constants.TAG, "SDK already initialized");
+            return true;
+        }
+
         if (UserSession.USER_HASH == null || UserSession.USER_HASH.isEmpty()) {
             return false;
         }
@@ -45,11 +53,23 @@ public class NavigineSdkManager {
             RouteManager = SDK.getRouteManager(LocationManager, NavigationManager);
             NotificationManager = SDK.getNotificationManager(LocationManager);
             ZoneManager = SDK.getZoneManager(NavigationManager);
+
+            isSDKInitialized = true;
+            Log.d(Constants.TAG, "SDK initialized successfully");
         } catch (Exception e) {
             Log.e(Constants.TAG, "Failed initialize Navigine SDK " + e.getMessage());
             return false;
         }
 
         return true;
+    }
+
+    public static boolean isInitialized() {
+        return isSDKInitialized;
+    }
+
+    // Method to reset if needed (for testing or restart scenarios)
+    public static void resetInitializationFlag() {
+        isSDKInitialized = false;
     }
 }

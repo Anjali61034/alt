@@ -5,8 +5,11 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
+import android.location.Location;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.speech.RecognizerIntent;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -33,7 +36,6 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import com.navigine.idl.java.LocationInfo; // SDK's LocationInfo
 import com.navigine.idl.java.LocationListListener;
 import com.navigine.idl.java.LocationListener;
-import com.navigine.idl.java.Location;
 import com.navigine.idl.java.Sublocation;
 import com.navigine.idl.java.Venue;
 import com.navigine.navigine.demo.R;
@@ -77,10 +79,13 @@ public class LocationsFragment extends Fragment implements OnMapReadyCallback {
 
     // Store loaded locations from SDK
     private HashMap<Integer, LocationInfo> loadedLocations = new HashMap<>();
-    private HashMap<Integer, Location> loadedLocationObjects = new HashMap<>();
+    private HashMap<Integer, com.navigine.idl.java.Location> loadedLocationObjects = new HashMap<>();
 
     // Keep track of which locations we're currently loading
     private HashMap<Integer, Boolean> loadingLocations = new HashMap<>();
+
+    // Handler for safe SDK operations
+    private Handler mainHandler = new Handler(Looper.getMainLooper());
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -132,7 +137,6 @@ public class LocationsFragment extends Fragment implements OnMapReadyCallback {
         requestLocationPermissions();
         setupMicButton();
         setupSuggestionCards();
-
 
         // Add this in onViewCreated method
         binding.searchView.setOnClickListener(v -> {
@@ -218,7 +222,7 @@ public class LocationsFragment extends Fragment implements OnMapReadyCallback {
         Log.d(TAG, "Loading venues for location ID: " + locationId);
 
         // Check if we already have the location object loaded
-        Location location = getLocationById(locationId);
+        com.navigine.idl.java.Location location = getLocationById(locationId);
         if (location != null) {
             Log.d(TAG, "Found cached location object for ID: " + locationId);
             processLocationForVenues(location);
@@ -255,7 +259,7 @@ public class LocationsFragment extends Fragment implements OnMapReadyCallback {
                 }
 
                 @Override
-                public void onLocationLoaded(@NonNull Location location) {
+                public void onLocationLoaded(@NonNull com.navigine.idl.java.Location location) {
                     Log.d(TAG, "Location loaded successfully: " + location.getId() + " - " + location.getName());
 
                     // Cache the loaded location
@@ -287,7 +291,7 @@ public class LocationsFragment extends Fragment implements OnMapReadyCallback {
         }
     }
 
-    private void processLocationForVenues(Location location) {
+    private void processLocationForVenues(com.navigine.idl.java.Location location) {
         Log.d(TAG, "Processing location for venues: " + location.getName());
 
         try {
@@ -352,7 +356,7 @@ public class LocationsFragment extends Fragment implements OnMapReadyCallback {
         }
     }
 
-    private Location getLocationById(int id) {
+    private com.navigine.idl.java.Location getLocationById(int id) {
         // Return from loaded location objects if available
         if (loadedLocationObjects.containsKey(id)) {
             Log.d(TAG, "Returning cached location object for ID: " + id);
@@ -382,18 +386,68 @@ public class LocationsFragment extends Fragment implements OnMapReadyCallback {
         }
     }
 
+    // Mock location detection method
+    private boolean isMockLocation(Location location) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+            return location.isFromMockProvider();
+        }
+        return false;
+    }
+
     @SuppressWarnings("MissingPermission")
     private void getLastLocation() {
-        if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return;
+        if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
+            return;
+
         fusedLocationClient.getLastLocation().addOnSuccessListener(location -> {
             if (location != null) {
-                userLatitude = location.getLatitude();
-                userLongitude = location.getLongitude();
-                updateMapWithUserLocation();
-                fetchAddressDetails(userLatitude, userLongitude);
+                // Check if it's a mock location
+                if (isMockLocation(location)) {
+                    Log.w(TAG, "Mock location detected, handling carefully");
+                    handleMockLocation(location);
+                } else {
+                    Log.d(TAG, "Real location detected");
+                    handleRealLocation(location);
+                }
+            } else {
+                Log.w(TAG, "Location is null");
+            }
+        }).addOnFailureListener(e -> {
+            Log.e(TAG, "Failed to get location: " + e.getMessage());
+        });
+    }
+
+    private void handleMockLocation(Location location) {
+        Log.d(TAG, "Processing mock location: " + location.getLatitude() + ", " + location.getLongitude());
+
+        userLatitude = location.getLatitude();
+        userLongitude = location.getLongitude();
+        updateMapWithUserLocation();
+        fetchAddressDetails(userLatitude, userLongitude);
+
+        // For mock locations, avoid immediate SDK calls that might cause recursion
+        // Add delay to prevent rapid SDK calls and potential crashes
+        mainHandler.postDelayed(() -> {
+            if (getActivity() != null && !getActivity().isFinishing()) {
+                checkIfLocationIsCanaryConnectedSafely();
+            }
+        }, 1500); // Increased delay for mock locations
+    }
+
+    private void handleRealLocation(Location location) {
+        Log.d(TAG, "Processing real location: " + location.getLatitude() + ", " + location.getLongitude());
+
+        userLatitude = location.getLatitude();
+        userLongitude = location.getLongitude();
+        updateMapWithUserLocation();
+        fetchAddressDetails(userLatitude, userLongitude);
+
+        // For real locations, use a smaller delay or direct call
+        mainHandler.postDelayed(() -> {
+            if (getActivity() != null && !getActivity().isFinishing()) {
                 checkIfLocationIsCanaryConnected();
             }
-        });
+        }, 500);
     }
 
     private void fetchAddressDetails(double latitude, double longitude) {
@@ -458,6 +512,81 @@ public class LocationsFragment extends Fragment implements OnMapReadyCallback {
         }
     }
 
+    // Safe version for mock locations
+    private void checkIfLocationIsCanaryConnectedSafely() {
+        Log.d(TAG, "Safely checking if user location is inside polygon (mock location)...");
+
+        try {
+            // Add additional safety checks for mock locations
+            if (getActivity() == null || getActivity().isFinishing()) {
+                Log.w(TAG, "Activity is null or finishing, skipping location check");
+                return;
+            }
+
+            if (userLatitude == 0.0 && userLongitude == 0.0) {
+                Log.w(TAG, "Invalid coordinates, fallback to address");
+                updateUIForDisconnectedLocation();
+                return;
+            }
+
+            // Process with additional error handling
+            processLocationCheckSafely();
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error in safe location check: " + e.getMessage());
+            // Fallback to disconnected state
+            updateUIForDisconnectedLocation();
+        }
+    }
+
+    private void processLocationCheckSafely() {
+        try {
+            LocationManager.LocationInfo matchedLoc = locationManager.checkUserLocation(userLatitude, userLongitude);
+
+            if (matchedLoc != null) {
+                int id = matchedLoc.getId();
+                String name = matchedLoc.getName();
+                boolean canaryConnected = matchedLoc.isCanaryConnected();
+
+                Log.d(TAG, "Matched Location ID: " + id + ", Name: " + name + ", Canary: " + canaryConnected);
+
+                isCanaryConnected = canaryConnected;
+                isLocationCanaryConnected = canaryConnected;
+                matchedLocationInfo = new LocationInfo(id, 0, name);
+                updateUIForMatchedLocation(matchedLoc);
+
+                if (canaryConnected) {
+                    Log.d(TAG, "Location is Canary connected, loading venues safely...");
+
+                    // Add additional delay for SDK operations with mock locations
+                    mainHandler.postDelayed(() -> {
+                        if (getActivity() != null && !getActivity().isFinishing()) {
+                            try {
+                                NavigineSdkManager.LocationManager.setLocationId(id);
+                                loadVenuesForLocation(id);
+                            } catch (Exception e) {
+                                Log.e(TAG, "Error setting location ID for mock location: " + e.getMessage());
+                                setDefaultSuggestions();
+                            }
+                        }
+                    }, 1000); // Additional delay for SDK operations
+                } else {
+                    Log.d(TAG, "Location is not Canary connected, using default suggestions");
+                    setDefaultSuggestions();
+                }
+            } else {
+                Log.d(TAG, "No polygon matched for mock location");
+                updateUIForDisconnectedLocation();
+                matchedLocationInfo = null;
+                isCanaryConnected = false;
+                isLocationCanaryConnected = false;
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error in processLocationCheckSafely: " + e.getMessage());
+            updateUIForDisconnectedLocation();
+        }
+    }
+
     private void checkIfLocationIsCanaryConnected() {
         Log.d(TAG, "Checking if user location is inside polygon...");
         isLocationCanaryConnected = false;
@@ -469,35 +598,39 @@ public class LocationsFragment extends Fragment implements OnMapReadyCallback {
             return;
         }
 
-        LocationManager.LocationInfo matchedLoc = locationManager.checkUserLocation(userLatitude, userLongitude);
-        if (matchedLoc != null) {
-            int id = matchedLoc.getId();
-            String name = matchedLoc.getName();
-            boolean canaryConnected = matchedLoc.isCanaryConnected();
+        try {
+            LocationManager.LocationInfo matchedLoc = locationManager.checkUserLocation(userLatitude, userLongitude);
+            if (matchedLoc != null) {
+                int id = matchedLoc.getId();
+                String name = matchedLoc.getName();
+                boolean canaryConnected = matchedLoc.isCanaryConnected();
 
-            Log.d(TAG, "Matched Location ID: " + id + ", Name: " + name + ", Canary: " + canaryConnected);
+                Log.d(TAG, "Matched Location ID: " + id + ", Name: " + name + ", Canary: " + canaryConnected);
 
-            isCanaryConnected = canaryConnected;
-            isLocationCanaryConnected = canaryConnected;
-            matchedLocationInfo = new LocationInfo(id, 0, name);
-            updateUIForMatchedLocation(matchedLoc);
+                isCanaryConnected = canaryConnected;
+                isLocationCanaryConnected = canaryConnected;
+                matchedLocationInfo = new LocationInfo(id, 0, name);
+                updateUIForMatchedLocation(matchedLoc);
 
-            if (canaryConnected) {
-                Log.d(TAG, "Location is Canary connected, loading venues...");
-                NavigineSdkManager.LocationManager.setLocationId(id);
-
-                loadVenuesForLocation(id);
+                if (canaryConnected) {
+                    Log.d(TAG, "Location is Canary connected, loading venues...");
+                    NavigineSdkManager.LocationManager.setLocationId(id);
+                    loadVenuesForLocation(id);
+                } else {
+                    Log.d(TAG, "Location is not Canary connected, using default suggestions");
+                    setDefaultSuggestions();
+                }
             } else {
-                Log.d(TAG, "Location is not Canary connected, using default suggestions");
-                setDefaultSuggestions();
+                // polygon not matched
+                Log.d(TAG, "No polygon matched for user location");
+                updateUIForDisconnectedLocation();
+                matchedLocationInfo = null;
+                isCanaryConnected = false;
+                isLocationCanaryConnected = false;
             }
-        } else {
-            // polygon not matched
-            Log.d(TAG, "No polygon matched for user location");
+        } catch (Exception e) {
+            Log.e(TAG, "Error checking location: " + e.getMessage());
             updateUIForDisconnectedLocation();
-            matchedLocationInfo = null;
-            isCanaryConnected = false;
-            isLocationCanaryConnected = false;
         }
     }
 
@@ -575,6 +708,7 @@ public class LocationsFragment extends Fragment implements OnMapReadyCallback {
                         Log.d(TAG, "Available location: ID=" + entry.getKey() + ", Name=" + entry.getValue().getName());
                     }
                 }
+
                 @Override
                 public void onLocationListFailed(@NonNull Error error) {
                     Log.e(TAG, "Failed to load location list: " + error.getMessage());
@@ -631,6 +765,11 @@ public class LocationsFragment extends Fragment implements OnMapReadyCallback {
         super.onDestroy();
         // Clean up listeners to prevent memory leaks
         try {
+            // Remove any pending callbacks
+            if (mainHandler != null) {
+                mainHandler.removeCallbacksAndMessages(null);
+            }
+
             if (NavigineSdkManager.LocationListManager != null) {
                 // Remove listeners if your SDK supports it
                 // NavigineSdkManager.LocationListManager.removeAllLocationListListeners();
@@ -641,6 +780,15 @@ public class LocationsFragment extends Fragment implements OnMapReadyCallback {
             }
         } catch (Exception e) {
             Log.e(TAG, "Error cleaning up listeners: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        // Remove pending callbacks when fragment is paused to prevent crashes
+        if (mainHandler != null) {
+            mainHandler.removeCallbacksAndMessages(null);
         }
     }
 }

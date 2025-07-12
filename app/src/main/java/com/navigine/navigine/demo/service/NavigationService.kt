@@ -105,7 +105,7 @@ class NavigationService : Service() {
 
         return NotificationCompat.Builder(this, Constants.NOTIFICATION_CHANNEL_ID)
             .setContentTitle(getString(R.string.navigation_service_name))
-            .setSmallIcon(R.drawable.ic_navigation)
+            .setSmallIcon(R.drawable.bird_icon)
             .setContentIntent(pendingIntent)
             .build()
     }
