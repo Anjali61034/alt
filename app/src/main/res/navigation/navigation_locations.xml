@@ -9,6 +9,18 @@
         android:id="@+id/fr_locations"
         android:name="com.navigine.navigine.demo.ui.fragments.LocationsFragment"
         android:label="a"
-        tools:layout="@layout/fragment_locations" />
+        tools:layout="@layout/fragment_locations">
+
+        <!-- Add this action -->
+        <action
+            android:id="@+id/action_locations_to_search"
+            app:destination="@id/fr_search" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/fr_search"
+        android:name="com.navigine.navigine.demo.ui.fragments.SearchFragment"
+        android:label="Search"
+        tools:layout="@layout/fragment_search" />
 
 </navigation>

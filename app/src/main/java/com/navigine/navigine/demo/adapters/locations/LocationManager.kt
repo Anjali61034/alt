@@ -102,7 +102,7 @@ class LocationManager(private val context: Context) {
                                                 isCanaryConnected = true
                                             }
                                             "Cure India", "CURE India" -> {
-                                                id = 2183
+                                                id = 2366
                                                 isCanaryConnected = true
                                             }
                                             else -> {

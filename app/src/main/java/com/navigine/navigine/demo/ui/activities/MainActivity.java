@@ -1,11 +1,15 @@
 package com.navigine.navigine.demo.ui.activities;
 
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.work.Constraints;
 import androidx.work.OneTimeWorkRequest;
@@ -25,8 +29,29 @@ import androidx.annotation.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 
+// Navigation Helper Class
+class NavigationHelper {
+    private SavedBottomNavigationView bottomNav;
+
+    public NavigationHelper(SavedBottomNavigationView bottomNav) {
+        this.bottomNav = bottomNav;
+    }
+
+    public void setup(List<Integer> navGraphIds,
+                      androidx.fragment.app.FragmentManager fragmentManager,
+                      int containerId,
+                      Intent intent) {
+        try {
+            bottomNav.setupWithNavController(navGraphIds, fragmentManager, containerId, intent);
+        } catch (Exception e) {
+            Log.e("NavigationHelper", "Error setting up navigation: " + e.getMessage(), e);
+        }
+    }
+}
+
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
+    private static final int LOCATION_PERMISSION_REQUEST_CODE = 1001;
 
     private SharedViewModel viewModel;
     private SavedBottomNavigationView mBottomNavigation;
@@ -145,7 +170,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         // Set user session data
-        UserSession.USER_HASH = "A9A7-BAAC-6B7F-313D";
+        UserSession.USER_HASH = "8007-5FE9-B121-5B6C";
         UserSession.LOCATION_SERVER = "https://ips.navigine.com";
         UserSession.USER_NAME = name != null ? name : "user";
         UserSession.USER_EMAIL = email != null ? email : "default@mail.com";
@@ -166,11 +191,6 @@ public class MainActivity extends AppCompatActivity {
                     return;
                 }
 
-
-                // NavigineSdk sdk = NavigineSdk.getInstance();
-               // sdk.setUserHash(UserSession.USER_HASH);
-              //  sdk.setServer(UserSession.LOCATION_SERVER);
-
                 Log.d(TAG, "SDK configured with hash: " + UserSession.USER_HASH);
 
                 // Just initialize the SDK managers
@@ -181,7 +201,10 @@ public class MainActivity extends AppCompatActivity {
                     Log.d(TAG, "SDK initialized successfully");
                     initViewModel();
                     initNavigationView();
-                    startNavigationService();
+
+                    // Request permissions before starting service
+                    requestLocationPermissions();
+
                     useLocation();
                     isAppInitialized = true;
                 } else {
@@ -210,12 +233,9 @@ public class MainActivity extends AppCompatActivity {
 
         Log.d(TAG, "Setting up navigation with " + navGraphIds.size() + " graphs");
 
-        mBottomNavigation.setupWithNavController(
-                navGraphIds,
-                getSupportFragmentManager(),
-                R.id.nav_host_fragment_activity_main,
-                getIntent()
-        );
+        // Using Navigation Helper for compatibility
+        NavigationHelper helper = new NavigationHelper(mBottomNavigation);
+        helper.setup(navGraphIds, getSupportFragmentManager(), R.id.nav_host_fragment_activity_main, getIntent());
 
         Log.d(TAG, "Navigation setup complete");
     }
@@ -264,6 +284,62 @@ public class MainActivity extends AppCompatActivity {
             }
         } else {
             Log.w(TAG, "Navigine SDK or LocationManager is not initialized yet");
+        }
+    }
+
+    private void requestLocationPermissions() {
+        Log.d(TAG, "requestLocationPermissions() called");
+
+        List<String> permissionsToRequest = new ArrayList<>();
+
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            permissionsToRequest.add(android.Manifest.permission.ACCESS_FINE_LOCATION);
+        }
+
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            permissionsToRequest.add(android.Manifest.permission.ACCESS_COARSE_LOCATION);
+        }
+
+        // For Android 14+ (API 34+), also request FOREGROUND_SERVICE_LOCATION
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.FOREGROUND_SERVICE_LOCATION)
+                    != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(android.Manifest.permission.FOREGROUND_SERVICE_LOCATION);
+            }
+        }
+
+        if (!permissionsToRequest.isEmpty()) {
+            ActivityCompat.requestPermissions(this,
+                    permissionsToRequest.toArray(new String[0]),
+                    LOCATION_PERMISSION_REQUEST_CODE);
+        } else {
+            // All permissions granted, start the service
+            startNavigationService();
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
+            boolean allPermissionsGranted = true;
+            for (int result : grantResults) {
+                if (result != PackageManager.PERMISSION_GRANTED) {
+                    allPermissionsGranted = false;
+                    break;
+                }
+            }
+
+            if (allPermissionsGranted) {
+                Log.d(TAG, "All location permissions granted");
+                startNavigationService();
+            } else {
+                Log.e(TAG, "Location permissions denied - cannot start navigation service");
+                // Show dialog explaining why permissions are needed
+            }
         }
     }
 

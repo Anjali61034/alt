@@ -2,7 +2,7 @@ package com.navigine.navigine.demo.models
 
 object UserSession {
     @JvmField
-    var USER_HASH: String = "A9A7-BAAC-6B7F-313D"
+    var USER_HASH: String = "8007-5FE9-B121-5B6C"
     @JvmField
     var USER_NAME: String = "user"
     @JvmField

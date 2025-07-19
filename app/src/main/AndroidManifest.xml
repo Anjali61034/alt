@@ -5,6 +5,7 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -62,7 +63,8 @@
 
 
         <activity android:name=".ui.activities.MainActivity" />
-        <activity android:name="com.navigine.navigine.demo.ui.activities.SearchActivity" />
+        <activity android:name="com.navigine.navigine.demo.ui.fragments.SearchFragment"
+            tools:ignore="Instantiatable" />
 
         <service
             android:name=".service.NavigationService"

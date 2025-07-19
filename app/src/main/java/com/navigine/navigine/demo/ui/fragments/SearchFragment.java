@@ -1,4 +1,4 @@
-package com.navigine.navigine.demo.ui.activities;
+package com.navigine.navigine.demo.ui.fragments;
 
 import static android.view.View.GONE;
 import static android.view.View.VISIBLE;
@@ -20,18 +20,22 @@ import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.annotation.DrawableRes;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SearchView;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.core.content.ContextCompat;
+import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.cardview.widget.CardView;
@@ -59,11 +63,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class SearchActivity extends AppCompatActivity {
+public class SearchFragment extends Fragment {
 
-    public static final String EXTRA_IS_CANARY_CONNECTED = "com.navigine.navigine.demo.ui.activities.EXTRA_IS_CANARY_CONNECTED";
+    public static final String ARG_IS_CANARY_CONNECTED = "is_canary_connected";
+    public static final String ARG_VENUE_NAMES = "venue_names";
+    public static final String ARG_INITIAL_QUERY = "initial_query";
 
-    private static final String TAG = "SearchActivity";
+    private static final String TAG = "SearchFragment";
 
     private SharedViewModel viewModel = null;
 
@@ -100,9 +106,10 @@ public class SearchActivity extends AppCompatActivity {
     private List<VenueIconObj>      mFilteredVenueIconsList   = new ArrayList<>();
     private Map<Chip, VenueIconObj> mChipsMap                 = new HashMap<>();
 
-    // Add venues from intent
-    private List<String> mVenueNamesFromIntent = new ArrayList<>();
+    // Add venues from arguments
+    private List<String> mVenueNamesFromArguments = new ArrayList<>();
     private boolean mIsCanaryConnected = false;
+    private String mInitialQuery = null;
 
     private VenueListAdapter                 mVenueListAdapter       = null;
     private VenuesIconsListAdapter           mVenuesIconsListAdapter = null;
@@ -110,55 +117,100 @@ public class SearchActivity extends AppCompatActivity {
     private StateReceiver mStateReceiver = null;
     private IntentFilter mStateReceiverFilter = null;
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_search);
+    public static SearchFragment newInstance(boolean isCanaryConnected, ArrayList<String> venueNames) {
+        SearchFragment fragment = new SearchFragment();
+        Bundle args = new Bundle();
+        args.putBoolean(ARG_IS_CANARY_CONNECTED, isCanaryConnected);
+        if (venueNames != null) {
+            args.putStringArrayList(ARG_VENUE_NAMES, venueNames);
+        }
+        fragment.setArguments(args);
+        return fragment;
+    }
 
-        initViewModels();
-        initBroadcastReceiver();
-        initViews();
-        setViewsParams();
-        initAdapters();
-        setAdapters();
-        setViewsListeners();
-        setObservers();
-
-        // Get intent data
-        getIntentData();
-
-        // Set initial suggestions
-        setInitialSuggestions();
+    public static SearchFragment newInstance(boolean isCanaryConnected, ArrayList<String> venueNames, String initialQuery) {
+        SearchFragment fragment = new SearchFragment();
+        Bundle args = new Bundle();
+        args.putBoolean(ARG_IS_CANARY_CONNECTED, isCanaryConnected);
+        if (venueNames != null) {
+            args.putStringArrayList(ARG_VENUE_NAMES, venueNames);
+        }
+        if (initialQuery != null) {
+            args.putString(ARG_INITIAL_QUERY, initialQuery);
+        }
+        fragment.setArguments(args);
+        return fragment;
     }
 
     @Override
-    protected void onResume() {
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        initViewModels();
+        initBroadcastReceiver();
+
+        // Get arguments data
+        getArgumentsData();
+    }
+
+    @Nullable
+    @Override
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+        View view = inflater.inflate(R.layout.fragment_search, container, false);
+
+        initViews(view);
+        setViewsParams();
+        initAdapters();
+        setAdapters();
+        setViewsListeners(view);
+        setObservers();
+
+        // Set initial suggestions
+        setInitialSuggestions();
+
+        // Set initial query if provided
+        if (mInitialQuery != null && !mInitialQuery.isEmpty()) {
+            mSearchField.post(() -> {
+                mSearchField.setQuery(mInitialQuery, false);
+                mSearchField.setIconified(false);
+                mSearchField.requestFocus();
+            });
+        }
+
+        return view;
+    }
+
+    @Override
+    public void onResume() {
         super.onResume();
         addListeners();
     }
 
     @Override
-    protected void onPause() {
+    public void onPause() {
         super.onPause();
         removeListeners();
     }
 
-    private void getIntentData() {
-        Intent intent = getIntent();
-        mIsCanaryConnected = intent.getBooleanExtra(EXTRA_IS_CANARY_CONNECTED, false);
+    private void getArgumentsData() {
+        Bundle args = getArguments();
+        if (args != null) {
+            mIsCanaryConnected = args.getBoolean(ARG_IS_CANARY_CONNECTED, false);
+            mInitialQuery = args.getString(ARG_INITIAL_QUERY);
 
-        if (mIsCanaryConnected) {
-            mVenueNamesFromIntent = intent.getStringArrayListExtra("venue_names");
-            if (mVenueNamesFromIntent == null) {
-                mVenueNamesFromIntent = new ArrayList<>();
+            if (mIsCanaryConnected) {
+                mVenueNamesFromArguments = args.getStringArrayList(ARG_VENUE_NAMES);
+                if (mVenueNamesFromArguments == null) {
+                    mVenueNamesFromArguments = new ArrayList<>();
+                }
+                Log.d(TAG, "Received " + mVenueNamesFromArguments.size() + " venue names from arguments");
             }
-            Log.d(TAG, "Received " + mVenueNamesFromIntent.size() + " venue names from intent");
         }
     }
 
     private void setInitialSuggestions() {
-        if (mIsCanaryConnected && !mVenueNamesFromIntent.isEmpty()) {
-            updateSuggestionsWithVenueNames(mVenueNamesFromIntent);
+        if (mIsCanaryConnected && !mVenueNamesFromArguments.isEmpty()) {
+            updateSuggestionsWithVenueNames(mVenueNamesFromArguments);
         } else {
             setDefaultSuggestions();
         }
@@ -218,33 +270,33 @@ public class SearchActivity extends AppCompatActivity {
         }
     }
 
-    private void initViews() {
-        mTransparentBackground     = findViewById(R.id.search__transparent_bg);
-        mSearchLayout              = findViewById(R.id.search_layout);
-        mVenueListLayout           = findViewById(R.id.search__venue_listview);
-        mVenueIconsLayout          = findViewById(R.id.search__venue_icons);
-        mVenueIconsListView        = findViewById(R.id.recycler_list_venue_icons);
-        mVenueListView             = findViewById(R.id.recycler_list_venues);
-        mItemDivider               = new MaterialDividerItemDecoration(this, MaterialDividerItemDecoration.VERTICAL);
-        mSearchPanel               = findViewById(R.id.search__search_panel);
-        mSearchField               = findViewById(R.id.search__search_field);
+    private void initViews(View view) {
+        mTransparentBackground     = view.findViewById(R.id.search__transparent_bg);
+        mSearchLayout              = view.findViewById(R.id.search_layout);
+        mVenueListLayout           = view.findViewById(R.id.search__venue_listview);
+        mVenueIconsLayout          = view.findViewById(R.id.search__venue_icons);
+        mVenueIconsListView        = view.findViewById(R.id.recycler_list_venue_icons);
+        mVenueListView             = view.findViewById(R.id.recycler_list_venues);
+        mItemDivider               = new MaterialDividerItemDecoration(requireContext(), MaterialDividerItemDecoration.VERTICAL);
+        mSearchPanel               = view.findViewById(R.id.search__search_panel);
+        mSearchField               = view.findViewById(R.id.search__search_field);
         mSearchBtnClear            = mSearchField.findViewById(R.id.search__search_btn_close);
-        mSearchBtn                 = findViewById(R.id.search__search_btn);
-        mSearchBtnClose            = findViewById(R.id.search__search_btn_close);
-        mChipsScroll               = findViewById(R.id.search__search_chips_scroll);
-        mChipGroup                 = findViewById(R.id.search__search_chips_group);
+        mSearchBtn                 = view.findViewById(R.id.search__search_btn);
+        mSearchBtnClose            = view.findViewById(R.id.search__search_btn_close);
+        mChipsScroll               = view.findViewById(R.id.search__search_chips_scroll);
+        mChipGroup                 = view.findViewById(R.id.search__search_chips_group);
 
         // Initialize suggestion views
-        mSuggestionsText           = findViewById(R.id.suggestionsText);
-        mSuggestionsLayout         = findViewById(R.id.suggestionsLayout);
-        mSuggestionCard1           = findViewById(R.id.suggestionCard1);
-        mSuggestionCard2           = findViewById(R.id.suggestionCard2);
-        mSuggestionCard3           = findViewById(R.id.suggestionCard3);
-        mSuggestionCard4           = findViewById(R.id.suggestionCard4);
-        mSuggestionText1           = findViewById(R.id.suggestionText1);
-        mSuggestionText2           = findViewById(R.id.suggestionText2);
-        mSuggestionText3           = findViewById(R.id.suggestionText3);
-        mSuggestionText4           = findViewById(R.id.suggestionText4);
+        mSuggestionsText           = view.findViewById(R.id.suggestionsText);
+        mSuggestionsLayout         = view.findViewById(R.id.suggestionsLayout);
+        mSuggestionCard1           = view.findViewById(R.id.suggestionCard1);
+        mSuggestionCard2           = view.findViewById(R.id.suggestionCard2);
+        mSuggestionCard3           = view.findViewById(R.id.suggestionCard3);
+        mSuggestionCard4           = view.findViewById(R.id.suggestionCard4);
+        mSuggestionText1           = view.findViewById(R.id.suggestionText1);
+        mSuggestionText2           = view.findViewById(R.id.suggestionText2);
+        mSuggestionText3           = view.findViewById(R.id.suggestionText3);
+        mSuggestionText4           = view.findViewById(R.id.suggestionText4);
     }
 
     private void setViewsParams() {
@@ -273,14 +325,20 @@ public class SearchActivity extends AppCompatActivity {
 
         // Set divider color
         if (mItemDivider != null) {
-            mItemDivider.setDividerColor(ContextCompat.getColor(this, R.color.colorBackground));
+            mItemDivider.setDividerColor(ContextCompat.getColor(requireContext(), R.color.colorBackground));
             mItemDivider.setLastItemDecorated(false);
             mVenueListView.addItemDecoration(mItemDivider);
         }
     }
 
-    private void setViewsListeners() {
+    private void setViewsListeners(View view) {
         mTransparentBackground.setOnClickListener(v -> onHandleCancelSearch());
+
+        // Check if start button exists in layout before trying to access it
+        View startButton = view.findViewById(R.id.start_button);
+        if (startButton != null) {
+            startButton.setOnClickListener(v -> openNavigationFragment());
+        }
 
         mSearchField.setOnQueryTextFocusChangeListener(this::onSearchBoxFocusChange);
 
@@ -301,6 +359,25 @@ public class SearchActivity extends AppCompatActivity {
 
         // Setup suggestion card listeners
         setupSuggestionCards();
+    }
+
+    private void openNavigationFragment() {
+        View rootView = getView();
+        if (rootView != null) {
+            View fragmentContainer = rootView.findViewById(R.id.fragment_container);
+            View greenContainer = rootView.findViewById(R.id.green_container);
+
+            if (fragmentContainer != null && greenContainer != null) {
+                fragmentContainer.setVisibility(View.VISIBLE);
+                greenContainer.setVisibility(View.GONE);
+
+                getParentFragmentManager()
+                        .beginTransaction()
+                        .replace(R.id.fragment_container, new NavigationFragment())
+                        .addToBackStack(null)
+                        .commit();
+            }
+        }
     }
 
     private void onHandleSearchQueryChange(String query) {
@@ -378,7 +455,7 @@ public class SearchActivity extends AppCompatActivity {
     }
 
     private void showTransparentLayout() {
-        mTransparentBackground.setBackground(ContextCompat.getDrawable(this, android.R.drawable.screen_background_dark_transparent));
+        mTransparentBackground.setBackground(ContextCompat.getDrawable(requireContext(), android.R.drawable.screen_background_dark_transparent));
         mTransparentBackground.setClickable(true);
         mTransparentBackground.setFocusable(true);
     }
@@ -447,14 +524,16 @@ public class SearchActivity extends AppCompatActivity {
 
     private void addListeners() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(mStateReceiver, mStateReceiverFilter, Context.RECEIVER_NOT_EXPORTED);
+            requireContext().registerReceiver(mStateReceiver, mStateReceiverFilter, Context.RECEIVER_NOT_EXPORTED);
         } else {
-            ContextCompat.registerReceiver(this, mStateReceiver, mStateReceiverFilter, ContextCompat.RECEIVER_NOT_EXPORTED);
+            ContextCompat.registerReceiver(requireContext(), mStateReceiver, mStateReceiverFilter, ContextCompat.RECEIVER_NOT_EXPORTED);
         }
     }
 
     private void removeListeners() {
-        unregisterReceiver(mStateReceiver);
+        if (mStateReceiver != null) {
+            requireContext().unregisterReceiver(mStateReceiver);
+        }
     }
 
     private void hideVenueLayouts() {
@@ -525,13 +604,13 @@ public class SearchActivity extends AppCompatActivity {
     }
 
     private Chip createChip(String chipText, @DrawableRes int iconRes) {
-        Chip chip = new Chip(this);
+        Chip chip = new Chip(requireContext());
         chip.setText(chipText);
-        chip.setChipIcon(ContextCompat.getDrawable(this, iconRes));
+        chip.setChipIcon(ContextCompat.getDrawable(requireContext(), iconRes));
         chip.setCloseIconVisible(true);
         chip.setClickable(true);
         chip.setCheckable(false);
-        chip.setCloseIconTint(ContextCompat.getColorStateList(this, R.color.colorPrimary));
+        chip.setCloseIconTint(ContextCompat.getColorStateList(requireContext(), R.color.colorPrimary));
         chip.setEllipsize(TextUtils.TruncateAt.END);
         chip.setOnCloseIconClickListener(v -> onCancelChip((Chip) v));
         return chip;
@@ -593,7 +672,7 @@ public class SearchActivity extends AppCompatActivity {
             }
         } else {
             changeSearchBoxStroke(ColorUtils.COLOR_SECONDARY);
-            KeyboardController.hideSoftKeyboard(this);
+            KeyboardController.hideSoftKeyboard(requireActivity());
         }
     }
 
