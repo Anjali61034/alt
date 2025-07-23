@@ -1,6 +1,5 @@
 package com.navigine.navigine.demo.ui.fragments;
 
-
 import static com.navigine.navigine.demo.utils.Constants.TAG;
 
 import android.os.Build;
@@ -22,13 +21,9 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.navigine.idl.java.Location;
 import com.navigine.idl.java.LocationPoint;
-import com.navigine.idl.java.MeasurementListener;
 import com.navigine.idl.java.Position;
-import com.navigine.idl.java.PositionListener;
-import com.navigine.idl.java.SensorMeasurement;
-import com.navigine.idl.java.SensorType;
 import com.navigine.idl.java.SignalMeasurement;
-import com.navigine.idl.java.Vector3d;
+import com.navigine.idl.java.SignalType;
 import com.navigine.navigine.demo.BuildConfig;
 import com.navigine.navigine.demo.R;
 import com.navigine.navigine.demo.adapters.debug.DebugAdapterBase;
@@ -36,64 +31,51 @@ import com.navigine.navigine.demo.adapters.debug.DebugAdapterBeacons;
 import com.navigine.navigine.demo.adapters.debug.DebugAdapterBle;
 import com.navigine.navigine.demo.adapters.debug.DebugAdapterEddystone;
 import com.navigine.navigine.demo.adapters.debug.DebugAdapterInfo;
-import com.navigine.navigine.demo.adapters.debug.DebugAdapterRtt;
-import com.navigine.navigine.demo.adapters.debug.DebugAdapterSensors;
-import com.navigine.navigine.demo.adapters.debug.DebugAdapterWifi;
-import com.navigine.navigine.demo.utils.NavigineSdkManager;
+import com.navigine.navigine.demo.utils.BeaconScannerManager;
 import com.navigine.navigine.demo.viewmodel.SharedViewModel;
 
 import java.lang.reflect.Field;
+import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
-public class DebugFragment extends BaseFragment
-{
+public class DebugFragment extends BaseFragment implements BeaconScannerManager.BeaconScanListener {
+
     private static String OS_VERSION = "UNKNOWN";
     public static final int DEBUG_TIMEOUT_NO_SIGNAL = 5000;
 
     private SharedViewModel viewModel = null;
 
-    private Window            window             = null;
-    private NestedScrollView  mRootView          = null;
-    private RecyclerView      mListViewInfo      = null;
-    private RecyclerView      mListViewBeacons   = null;
-    private RecyclerView      mListViewWifi      = null;
-    private RecyclerView      mListViewEddystone = null;
-    private RecyclerView      mListViewRtt       = null;
-    private RecyclerView      mListViewBle       = null;
-    private RecyclerView      mListViewSensors   = null;
+    private Window mWindow = null;
+    private NestedScrollView mRootView = null;
+    private RecyclerView mListViewInfo = null;
+    private RecyclerView mListViewBeacons = null;
+    private RecyclerView mListViewEddystone = null;
+    private RecyclerView mListViewBle = null;
 
-    private ArrayList<String[]>     infoEntries   = new ArrayList<>();
-    private List<SignalMeasurement> beaconEntries = new ArrayList<>();
-    private List<SignalMeasurement> wifiEntries   = new ArrayList<>();
-    private List<SignalMeasurement> eddyEntries   = new ArrayList<>();
-    private List<SignalMeasurement> rttEntries    = new ArrayList<>();
-    private List<SignalMeasurement> bleEntries    = new ArrayList<>();
-    private List<String[]>          sensorEntries = new ArrayList<>();
-
+    private ArrayList<String[]> infoEntries = new ArrayList<>();
+    private List<BeaconScannerManager.BeaconData> beaconEntries = new ArrayList<>();
+    private List<BeaconScannerManager.BeaconData> eddyEntries = new ArrayList<>();
+    private List<BeaconScannerManager.BeaconData> bleEntries = new ArrayList<>();
 
     private Location mLocation = null;
 
-    private DebugAdapterInfo      debugInfoAdapter      = null;
-    private DebugAdapterBeacons   debugBeaconsAdapter   = null;
-    private DebugAdapterWifi      debugWifiAdapter      = null;
+    private DebugAdapterInfo debugInfoAdapter = null;
+    private DebugAdapterBeacons debugBeaconsAdapter = null;
     private DebugAdapterEddystone debugEddystoneAdapter = null;
-    private DebugAdapterRtt       debugRttAdapter       = null;
-    private DebugAdapterBle       debugBleAdapter       = null;
-    private DebugAdapterSensors   debugSensorsAdapter   = null;
+    private DebugAdapterBle debugBleAdapter = null;
 
-    private DividerItemDecoration mDivider  = null;
+    private DividerItemDecoration mDivider = null;
 
-    private PositionListener    mPositionListener    = null;
-    private MeasurementListener mMeasurementListener = null;
+    // BeaconScanner manager
+    private BeaconScannerManager beaconScanner;
 
-    private long timestampBeacons    = 0L;
+    private long timestampBeacons = 0L;
     private long timestampEddystones = 0L;
-    private long timestampBle        = 0L;
+    private long timestampBle = 0L;
 
     private static final String TEST_DEVICE_ID = UUID.randomUUID().toString();
 
@@ -103,46 +85,160 @@ public class DebugFragment extends BaseFragment
         getOsVersion();
         initViewModels();
         initAdapters();
-        initListeners();
+
+        // Get beacon scanner instance
+        beaconScanner = BeaconScannerManager.getInstance(requireActivity().getApplication());
+        timestampBeacons = timestampEddystones = timestampBle = System.currentTimeMillis();
     }
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container,
-                             Bundle savedInstanceState)
-    {
-
+    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_debug, container, false);
-
         initViews(view);
         setViewsParams();
         setAdapters();
         setAdaptersParams();
         setObservers();
-
         return view;
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        addListeners();
+        // Register as listener to receive beacon updates
+        beaconScanner.addListener(this);
     }
 
     @Override
     public void onPause() {
         super.onPause();
-        removeListeners();
+        // Unregister listener but don't stop scanning
+        beaconScanner.removeListener(this);
     }
 
-
+    // BeaconScanListener interface method
     @Override
-    protected void updateStatusBar() {
-        window.setStatusBarColor(ContextCompat.getColor(requireActivity(), R.color.colorBackground));
+    public void onBeaconsDetected(List<BeaconScannerManager.BeaconData> beacons) {
+        if (getActivity() == null) return;
+
+        getActivity().runOnUiThread(() -> {
+            beaconEntries.clear();
+            eddyEntries.clear();
+            bleEntries.clear();
+
+            for (BeaconScannerManager.BeaconData beacon : beacons) {
+                // Categorize beacons based on their type
+                if (beacon.beaconTypeCode == 0x4c000215) { // iBeacon
+                    beaconEntries.add(beacon);
+                } else if (beacon.serviceUuid == 0xfeaa) { // Eddystone
+                    eddyEntries.add(beacon);
+                } else { // Others (BLE, AltBeacon, etc.)
+                    bleEntries.add(beacon);
+                }
+            }
+
+            // Sort by RSSI (strongest first)
+            Collections.sort(beaconEntries, (b1, b2) -> Float.compare(b2.rssi, b1.rssi));
+            Collections.sort(eddyEntries, (b1, b2) -> Float.compare(b2.rssi, b1.rssi));
+            Collections.sort(bleEntries, (b1, b2) -> Float.compare(b2.rssi, b1.rssi));
+
+            updateBeaconAdapters();
+        });
     }
 
+    private void updateBeaconAdapters() {
+        // Update iBeacons
+        if (!beaconEntries.isEmpty()) {
+            timestampBeacons = System.currentTimeMillis();
+            debugBeaconsAdapter.submit(convertToSignalMeasurements(beaconEntries));
+        } else if (System.currentTimeMillis() - timestampBeacons >= DEBUG_TIMEOUT_NO_SIGNAL) {
+            debugBeaconsAdapter.submit(Collections.<SignalMeasurement>emptyList());
+        }
+
+        // Update Eddystone
+        if (!eddyEntries.isEmpty()) {
+            timestampEddystones = System.currentTimeMillis();
+            debugEddystoneAdapter.submit(convertToSignalMeasurements(eddyEntries));
+        } else if (System.currentTimeMillis() - timestampEddystones >= DEBUG_TIMEOUT_NO_SIGNAL) {
+            debugEddystoneAdapter.submit(Collections.<SignalMeasurement>emptyList());
+        }
+
+        // Update BLE
+        if (!bleEntries.isEmpty()) {
+            timestampBle = System.currentTimeMillis();
+            debugBleAdapter.submit(convertToSignalMeasurements(bleEntries));
+        } else if (System.currentTimeMillis() - timestampBle >= DEBUG_TIMEOUT_NO_SIGNAL) {
+            debugBleAdapter.submit(Collections.<SignalMeasurement>emptyList());
+        }
+    }
+
+    // Convert List<BeaconData> to List<SignalMeasurement>
+    private List<SignalMeasurement> convertToSignalMeasurements(List<BeaconScannerManager.BeaconData> beaconDataList) {
+        List<SignalMeasurement> measurements = new ArrayList<>();
+        for (BeaconScannerManager.BeaconData beacon : beaconDataList) {
+            try {
+                // Create SignalMeasurement with required parameters
+                SignalType signalType = determineSignalType(beacon);
+                String identifier = beacon.macAddress != null ? beacon.macAddress : "unknown";
+                float rssi = beacon.rssi;
+                float distance = calculateDistance(beacon.rssi); // Estimate distance from RSSI
+                long timestamp = System.currentTimeMillis();
+
+                SignalMeasurement measurement = new SignalMeasurement(signalType, identifier, rssi, distance, timestamp);
+                measurements.add(measurement);
+            } catch (Exception e) {
+                Log.e(TAG, "Error creating SignalMeasurement: " + e.getMessage());
+            }
+        }
+        return measurements;
+    }
+
+    // Helper method to determine signal type based on beacon data
+    private SignalType determineSignalType(BeaconScannerManager.BeaconData beacon) {
+        // Check what SignalType enum values are actually available in your project
+        // Common Navigine SignalType values based on documentation:
+
+        if (beacon.beaconTypeCode == 0x4c000215) {
+            return SignalType.BEACON; // iBeacon
+        } else if (beacon.serviceUuid == 0xfeaa) {
+            return SignalType.EDDYSTONE; // Eddystone
+        } else {
+            // If BLE doesn't exist, try these alternatives:
+            // return SignalType.WIFI;
+            // return SignalType.BLUETOOTH;
+            // return SignalType.OTHER;
+            // return SignalType.UNKNOWN;
+
+            // For now, let's use WIFI as fallback (change this based on your actual enum values)
+            try {
+                return SignalType.WIFI;
+            } catch (Exception e) {
+                // If WIFI doesn't exist either, you'll need to check your SignalType enum
+                // and replace with an appropriate value
+                Log.e(TAG, "SignalType enum value not found, check your SignalType class");
+                return SignalType.BEACON; // Fallback to a known working value
+            }
+        }
+    }
+
+    // Helper method to estimate distance from RSSI
+    private float calculateDistance(float rssi) {
+        if (rssi == 0) {
+            return -1.0f; // Cannot determine distance
+        }
+
+        double ratio = (double) rssi / -59.0; // Assume -59 dBm at 1 meter
+        if (ratio < 1.0) {
+            return (float) Math.pow(ratio, 10);
+        } else {
+            double accuracy = (0.89976) * Math.pow(ratio, 7.7095) + 0.111;
+            return (float) accuracy;
+        }
+    }
+
+    // Rest of your existing methods remain the same...
     private void getOsVersion() {
         Field[] fields = Build.VERSION_CODES.class.getFields();
-
         for (Field field : fields) {
             try {
                 if (field.getInt(Build.VERSION_CODES.class) == Build.VERSION.SDK_INT) {
@@ -159,220 +255,40 @@ public class DebugFragment extends BaseFragment
     }
 
     private void initAdapters() {
-        debugInfoAdapter      = new DebugAdapterInfo();
-        debugBeaconsAdapter   = new DebugAdapterBeacons();
-        debugWifiAdapter      = new DebugAdapterWifi();
+        debugInfoAdapter = new DebugAdapterInfo();
+        debugBeaconsAdapter = new DebugAdapterBeacons();
         debugEddystoneAdapter = new DebugAdapterEddystone();
-        debugRttAdapter       = new DebugAdapterRtt();
-        debugBleAdapter       = new DebugAdapterBle();
-        debugSensorsAdapter   = new DebugAdapterSensors();
-    }
-
-    private void initListeners() {
-
-        mPositionListener = new PositionListener() {
-
-            @Override
-            public void onPositionUpdated(Position position) { updateInfoGeneral(position); }
-
-            @Override
-            public void onPositionError(Error error) { updateInfoGeneral(null); }
-        };
-
-        mMeasurementListener = new MeasurementListener() {
-
-            @Override
-            public void onSensorMeasurementDetected(HashMap<SensorType, SensorMeasurement> hashMap) {
-
-                sensorEntries.clear();
-
-                if (hashMap.containsKey(SensorType.ACCELEROMETER))
-                {
-                    SensorMeasurement measurement = hashMap.get(SensorType.ACCELEROMETER);
-
-                    if (measurement != null)
-                    {
-                        Vector3d values = measurement.getValues();
-                        sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_1), String.format(Locale.ENGLISH, "%.4f, %.4f, %.4f", values.getX(), values.getY(), values.getZ())});
-                    }
-                    else
-                        sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_1), "---"});
-                }
-                else
-                    sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_1), "---"});
-
-                if (hashMap.containsKey(SensorType.MAGNETOMETER))
-                {
-                    SensorMeasurement measurement = hashMap.get(SensorType.MAGNETOMETER);
-
-                    if (measurement != null)
-                    {
-                        Vector3d values = measurement.getValues();
-                        sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_2), String.format(Locale.ENGLISH, "%.4f, %.4f, %.4f", values.getX(), values.getY(), values.getZ())});
-                    }
-                    else
-                        sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_2), "---"});
-                }
-                else
-                    sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_2), "---"});
-
-                if (hashMap.containsKey(SensorType.GYROSCOPE))
-                {
-                    SensorMeasurement measurement = hashMap.get(SensorType.GYROSCOPE);
-
-                    if (measurement != null)
-                    {
-                        Vector3d values = measurement.getValues();
-                        sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_3), String.format(Locale.ENGLISH, "%.4f, %.4f, %.4f", values.getX(), values.getY(), values.getZ())});
-                    }
-                    else
-                        sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_3), "---"});
-                }
-                else
-                    sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_3), "---"});
-
-                if (hashMap.containsKey(SensorType.BAROMETER))
-                {
-                    SensorMeasurement measurement = hashMap.get(SensorType.BAROMETER);
-
-                    if (measurement != null)
-                    {
-                        Vector3d values = measurement.getValues();
-                        sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_4), String.format(Locale.ENGLISH, "%.2f", values.getX())});
-                    }
-                    else
-                        sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_4), "---"});
-                }
-                else
-                    sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_4), "---"});
-
-                if (hashMap.containsKey(SensorType.ORIENTATION))
-                {
-                    SensorMeasurement measurement = hashMap.get(SensorType.ORIENTATION);
-
-                    if (measurement != null)
-                    {
-                        Vector3d values = measurement.getValues();
-                        sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_5), String.format(Locale.ENGLISH, "%.2f", values.getX() * 180 / 3.14159f)});
-                    }
-                    else
-                        sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_5), "---"});
-                }
-                else
-                    sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_5), "---"});
-
-                if (!sensorEntries.isEmpty())
-                {
-                    debugSensorsAdapter.submit(sensorEntries);
-                }
-            }
-
-            @Override
-            public void onSignalMeasurementDetected(HashMap<String, SignalMeasurement> hashMap) {
-
-                wifiEntries.  clear();
-                rttEntries.   clear();
-                bleEntries.   clear();
-                beaconEntries.clear();
-                eddyEntries.  clear();
-
-                for (SignalMeasurement signal : hashMap.values())
-                {
-
-                    switch (signal.getType())
-                    {
-                        case WIFI:
-                            wifiEntries.add(signal);
-                            break;
-                        case WIFI_RTT:
-                            rttEntries.add(signal);
-                            break;
-                        case BEACON:
-                            beaconEntries.add(signal);
-                            break;
-                        case BLUETOOTH:
-                            bleEntries.add(signal);
-                            break;
-                        case EDDYSTONE:
-                            eddyEntries.add(signal);
-                            break;
-                    }
-                }
-
-                Collections.sort(wifiEntries,   (result1, result2) -> Float.compare(result2.getRssi(), result1.getRssi()));
-                Collections.sort(rttEntries,    (result1, result2) -> Float.compare(result2.getRssi(), result1.getRssi()));
-                Collections.sort(bleEntries,    (result1, result2) -> Float.compare(result2.getRssi(), result1.getRssi()));
-                Collections.sort(beaconEntries, (result1, result2) -> Float.compare(result2.getRssi(), result1.getRssi()));
-                Collections.sort(eddyEntries,   (result1, result2) -> Float.compare(result2.getRssi(), result1.getRssi()));
-
-                if (!wifiEntries.isEmpty()) {
-                    debugWifiAdapter.submit(wifiEntries);
-                }
-                if (!rttEntries.isEmpty()) {
-                    debugRttAdapter.submit(rttEntries);
-                }
-
-                if (!beaconEntries.isEmpty()) {
-                    timestampBeacons = System.currentTimeMillis();
-                    debugBeaconsAdapter.submit(beaconEntries);
-                } else if (System.currentTimeMillis() - timestampBeacons >= DEBUG_TIMEOUT_NO_SIGNAL)
-                    debugBeaconsAdapter.submit(Collections.EMPTY_LIST);
-
-                if (!bleEntries.isEmpty()) {
-                    timestampBle = System.currentTimeMillis();
-                    debugBleAdapter.submit(bleEntries);
-                } else if (System.currentTimeMillis() - timestampBle >= DEBUG_TIMEOUT_NO_SIGNAL)
-                    debugBleAdapter.submit(Collections.EMPTY_LIST);
-
-                if (!eddyEntries.isEmpty()) {
-                    timestampEddystones = System.currentTimeMillis();
-                    debugEddystoneAdapter.submit(eddyEntries);
-                } else if (System.currentTimeMillis() - timestampEddystones >= DEBUG_TIMEOUT_NO_SIGNAL)
-                    debugEddystoneAdapter.submit(Collections.EMPTY_LIST);
-            }
-        };
+        debugBleAdapter = new DebugAdapterBle();
     }
 
     private void initViews(View view) {
-        window             = requireActivity().getWindow();
-        mRootView          = view.findViewById(R.id.debug__root);
-        mListViewInfo      = view.findViewById(R.id.debug__info);
-        mListViewBeacons   = view.findViewById(R.id.debug__beacons);
-        mListViewWifi      = view.findViewById(R.id.debug__wifi);
+        mWindow = requireActivity().getWindow();
+        mRootView = view.findViewById(R.id.debug__root);
+        mListViewInfo = view.findViewById(R.id.debug__info);
+        mListViewBeacons = view.findViewById(R.id.debug__beacons);
         mListViewEddystone = view.findViewById(R.id.debug__eddystone);
-        mListViewRtt       = view.findViewById(R.id.debug__rtt);
-        mListViewBle       = view.findViewById(R.id.debug__ble);
-        mListViewSensors   = view.findViewById(R.id.debug__sensors);
-        mDivider           = new DividerItemDecoration(requireActivity(), DividerItemDecoration.VERTICAL);
+        mListViewBle = view.findViewById(R.id.debug__ble);
+        mDivider = new DividerItemDecoration(requireActivity(), DividerItemDecoration.VERTICAL);
     }
 
     private void setViewsParams() {
         mDivider.setDrawable(ContextCompat.getDrawable(requireActivity(), R.drawable.divider_transparent_list_item));
-        mListViewInfo.     addItemDecoration(mDivider);
-        mListViewBeacons.  addItemDecoration(mDivider);
-        mListViewWifi.     addItemDecoration(mDivider);
+        mListViewInfo.addItemDecoration(mDivider);
+        mListViewBeacons.addItemDecoration(mDivider);
         mListViewEddystone.addItemDecoration(mDivider);
-        mListViewRtt.      addItemDecoration(mDivider);
-        mListViewBle.      addItemDecoration(mDivider);
-        mListViewSensors.  addItemDecoration(mDivider);
+        mListViewBle.addItemDecoration(mDivider);
 
         LayoutAnimationController animationController = AnimationUtils.loadLayoutAnimation(requireActivity(), R.anim.layout_animation_fall_down);
-
-        mListViewBeacons.  setLayoutAnimation(animationController);
-        mListViewWifi.     setLayoutAnimation(animationController);
+        mListViewBeacons.setLayoutAnimation(animationController);
         mListViewEddystone.setLayoutAnimation(animationController);
-        mListViewRtt.      setLayoutAnimation(animationController);
-        mListViewBle.      setLayoutAnimation(animationController);
+        mListViewBle.setLayoutAnimation(animationController);
     }
 
     private void setAdapters() {
-        mListViewInfo.     setAdapter(debugInfoAdapter);
-        mListViewWifi.     setAdapter(debugWifiAdapter);
-        mListViewRtt.      setAdapter(debugRttAdapter);
-        mListViewBeacons.  setAdapter(debugBeaconsAdapter);
-        mListViewBle.      setAdapter(debugBleAdapter);
+        mListViewInfo.setAdapter(debugInfoAdapter);
+        mListViewBeacons.setAdapter(debugBeaconsAdapter);
         mListViewEddystone.setAdapter(debugEddystoneAdapter);
-        mListViewSensors.  setAdapter(debugSensorsAdapter);
+        mListViewBle.setAdapter(debugBleAdapter);
     }
 
     private void setAdaptersParams() {
@@ -383,32 +299,18 @@ public class DebugFragment extends BaseFragment
         viewModel.mLocation.observe(getViewLifecycleOwner(), location -> mLocation = location);
     }
 
-    private void addListeners() {
-        NavigineSdkManager.NavigationManager.addPositionListener(mPositionListener);
-        NavigineSdkManager.MeasurementManager.addMeasurementListener(mMeasurementListener);
-    }
-
-    private void removeListeners() {
-        NavigineSdkManager.NavigationManager.removePositionListener(mPositionListener);
-        NavigineSdkManager.MeasurementManager.removeMeasurementListener(mMeasurementListener);
-    }
-
     private void updateInfoGeneral(@Nullable Position position) {
         infoEntries.clear();
-
         infoEntries.add(new String[]{getString(R.string.debug_info_field_1), String.format(Locale.ENGLISH, "%s", BuildConfig.VERSION_NAME)});
         infoEntries.add(new String[]{getString(R.string.debug_info_field_2), String.format("%s", TEST_DEVICE_ID)});
 
-        if (mLocation != null)
-        {
+        if (mLocation != null) {
             infoEntries.add(new String[]{getString(R.string.debug_info_field_3), String.format(Locale.ENGLISH, "%s v. %s", mLocation.getName(), mLocation.getVersion())});
-        }
-        else
-        {
+        } else {
             infoEntries.add(new String[]{getString(R.string.debug_info_field_3), "---"});
         }
-        if (position != null)
-        {
+
+        if (position != null) {
             LocationPoint lp = position.getLocationPoint();
             if (lp != null) {
                 infoEntries.add(new String[]{getString(R.string.debug_info_field_4), String.format(Locale.ENGLISH, "%d/%d, x=%.1f, y=%.1f", lp.getLocationId(), lp.getSublocationId(),
@@ -417,16 +319,15 @@ public class DebugFragment extends BaseFragment
                 infoEntries.add(new String[]{getString(R.string.debug_info_field_4), String.format(Locale.ENGLISH, "-/-, lat=%.1f, lon=%.1f",
                         position.getPoint().getLatitude(), position.getPoint().getLongitude())});
             }
-        }
-        else
-        {
+        } else {
             infoEntries.add(new String[]{getString(R.string.debug_info_field_4), "---"});
         }
-
-        infoEntries.add(new String[]{String.format("%s: %s", getString(R.string.debug_info_field_5_1), bluetoothState), String.format("%s: %s", getString(R.string.debug_info_field_5_2), geoLocationState)});
-        infoEntries.add(new String[]{getString(R.string.debug_info_field_6), String.format(Locale.ENGLISH, "%s [ %s (%s) ] ", Build.MODEL, Build.VERSION.RELEASE, OS_VERSION)});
 
         debugInfoAdapter.submit(infoEntries);
     }
 
+    @Override
+    protected void updateStatusBar() {
+
+    }
 }
