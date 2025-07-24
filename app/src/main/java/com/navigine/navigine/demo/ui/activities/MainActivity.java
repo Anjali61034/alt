@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -64,7 +65,20 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         Log.d(TAG, "onCreate() called");
 
-        // Don't set content view immediately - wait for auth check
+        // Handle back press with modern approach
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                Log.d(TAG, "handleOnBackPressed() called");
+                if (getSupportFragmentManager().getBackStackEntryCount() > 0) {
+                    Log.d(TAG, "Popping fragment back stack");
+                    getSupportFragmentManager().popBackStack();
+                } else {
+                    Log.d(TAG, "No fragments in back stack, finishing activity");
+                    finishAffinity();
+                }
+            }
+        });
 
         // Initialize Firebase Auth
         firebaseAuth = FirebaseAuth.getInstance();
@@ -78,13 +92,11 @@ public class MainActivity extends AppCompatActivity {
                 Log.d(TAG, "AuthStateChanged - User: " + (user != null ? user.getEmail() : "null"));
 
                 if (user != null) {
-                    // User is signed in
                     Log.d(TAG, "User is authenticated: " + user.getEmail());
                     if (!isAppInitialized) {
                         initializeAppAfterAuth();
                     }
                 } else {
-                    // User is signed out
                     Log.d(TAG, "User is not authenticated - redirecting to login");
                     redirectToLogin();
                 }
@@ -100,14 +112,10 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        // Set content view only after authentication
         setContentView(R.layout.activity_main);
         Log.d(TAG, "Content view set");
 
-        // Get user credentials from intent or Firebase
         getUserCredentialsFromLogin();
-
-        // Initialize SDK with delay to prevent stack overflow
         initializeSdk();
     }
 
@@ -129,11 +137,7 @@ public class MainActivity extends AppCompatActivity {
         Log.d(TAG, "onDestroy() called");
     }
 
-    @Override
-    public void onBackPressed() {
-        Log.d(TAG, "onBackPressed() called");
-        finishAffinity();
-    }
+    // Removed legacy onBackPressed() method
 
     private boolean isUserAuthenticated() {
         FirebaseUser currentUser = firebaseAuth.getCurrentUser();
@@ -154,14 +158,12 @@ public class MainActivity extends AppCompatActivity {
     private void getUserCredentialsFromLogin() {
         Log.d(TAG, "getUserCredentialsFromLogin() called");
 
-        // Get data from intent (passed from LoginActivity)
         Intent intent = getIntent();
         String email = intent.getStringExtra("email");
         String name = intent.getStringExtra("name");
 
         Log.d(TAG, "Intent extras - Email: " + email + ", Name: " + name);
 
-        // Get Firebase user info
         FirebaseUser currentUser = firebaseAuth.getCurrentUser();
         if (currentUser != null) {
             Log.d(TAG, "Firebase user - Email: " + currentUser.getEmail() + ", Name: " + currentUser.getDisplayName());
@@ -169,7 +171,6 @@ public class MainActivity extends AppCompatActivity {
             if (name == null) name = currentUser.getDisplayName();
         }
 
-        // Set user session data
         UserSession.USER_HASH = "8007-5FE9-B121-5B6C";
         UserSession.LOCATION_SERVER = "https://ips.navigine.com";
         UserSession.USER_NAME = name != null ? name : "user";
@@ -193,7 +194,6 @@ public class MainActivity extends AppCompatActivity {
 
                 Log.d(TAG, "SDK configured with hash: " + UserSession.USER_HASH);
 
-                // Just initialize the SDK managers
                 boolean result = NavigineSdkManager.initializeSdk();
                 Log.d(TAG, "NavigineSdkManager.initializeSdk() result: " + result);
 
@@ -201,10 +201,7 @@ public class MainActivity extends AppCompatActivity {
                     Log.d(TAG, "SDK initialized successfully");
                     initViewModel();
                     initNavigationView();
-
-                    // Request permissions before starting service
                     requestLocationPermissions();
-
                     useLocation();
                     isAppInitialized = true;
                 } else {
@@ -213,7 +210,7 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception e) {
                 Log.e(TAG, "Failed to initialize SDK: " + e.getMessage(), e);
             }
-        }, 2000); // Increased delay to 2 seconds
+        }, 2000);
     }
 
     private void initViewModel() {
@@ -233,7 +230,6 @@ public class MainActivity extends AppCompatActivity {
 
         Log.d(TAG, "Setting up navigation with " + navGraphIds.size() + " graphs");
 
-        // Using Navigation Helper for compatibility
         NavigationHelper helper = new NavigationHelper(mBottomNavigation);
         helper.setup(navGraphIds, getSupportFragmentManager(), R.id.nav_host_fragment_activity_main, getIntent());
 
@@ -302,7 +298,6 @@ public class MainActivity extends AppCompatActivity {
             permissionsToRequest.add(android.Manifest.permission.ACCESS_COARSE_LOCATION);
         }
 
-        // For Android 14+ (API 34+), also request FOREGROUND_SERVICE_LOCATION
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.FOREGROUND_SERVICE_LOCATION)
                     != PackageManager.PERMISSION_GRANTED) {
@@ -315,7 +310,6 @@ public class MainActivity extends AppCompatActivity {
                     permissionsToRequest.toArray(new String[0]),
                     LOCATION_PERMISSION_REQUEST_CODE);
         } else {
-            // All permissions granted, start the service
             startNavigationService();
         }
     }
@@ -338,7 +332,6 @@ public class MainActivity extends AppCompatActivity {
                 startNavigationService();
             } else {
                 Log.e(TAG, "Location permissions denied - cannot start navigation service");
-                // Show dialog explaining why permissions are needed
             }
         }
     }

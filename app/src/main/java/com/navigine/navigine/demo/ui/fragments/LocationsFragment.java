@@ -191,32 +191,28 @@ public class LocationsFragment extends Fragment implements OnMapReadyCallback {
 
     private void launchSearchActivityFallback() {
         try {
-            // Create SearchFragment directly and replace current fragment
             SearchFragment searchFragment;
 
             if (isCanaryConnected && !currentVenues.isEmpty()) {
-                ArrayList<String> venueNames = new ArrayList<>();
-                for (Venue venue : currentVenues) {
-                    if (venue != null && venue.getName() != null) {
-                        venueNames.add(venue.getName());
-                    }
-                }
+                ArrayList<String> venueNames = getVenueNamesArray();
                 searchFragment = SearchFragment.newInstance(isCanaryConnected, venueNames);
             } else {
                 searchFragment = SearchFragment.newInstance(false, null);
             }
 
-            // Replace fragment using the correct container ID
-            getParentFragmentManager()
+            // Use activity fragment manager and correct container
+            requireActivity().getSupportFragmentManager()
                     .beginTransaction()
-                    .replace(R.id.nav_host_fragment_activity_main, searchFragment)
-                    .addToBackStack(null)
+                    .add(android.R.id.content, searchFragment)  // Try system container first
+                    .hide(this)
+                    .addToBackStack("search_fragment")  // Give it a name for debugging
                     .commit();
 
         } catch (Exception e) {
             Log.e(TAG, "Error launching search fragment fallback: " + e.getMessage());
         }
     }
+
 
     private void setupSuggestionCards() {
         try {

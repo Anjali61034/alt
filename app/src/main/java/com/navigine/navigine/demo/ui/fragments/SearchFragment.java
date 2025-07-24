@@ -10,6 +10,7 @@ import static com.navigine.navigine.demo.utils.Constants.VENUE_FILTER_ON;
 import static com.navigine.navigine.demo.utils.Constants.VENUE_SELECTED;
 
 import android.animation.LayoutTransition;
+import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -74,7 +75,7 @@ public class SearchFragment extends Fragment {
     private SharedViewModel viewModel = null;
 
     private SearchView                    mSearchField               = null;
-    private ConstraintLayout              mSearchPanel               = null;
+    private LinearLayout              mSearchPanel               = null;
     private LinearLayout                  mSearchLayout              = null;
     private FrameLayout                   mTransparentBackground     = null;
     private FrameLayout                   mVenueListLayout           = null;
@@ -270,6 +271,7 @@ public class SearchFragment extends Fragment {
         }
     }
 
+    @SuppressLint("WrongViewCast")
     private void initViews(View view) {
         mTransparentBackground     = view.findViewById(R.id.search__transparent_bg);
         mSearchLayout              = view.findViewById(R.id.search_layout);
@@ -281,7 +283,7 @@ public class SearchFragment extends Fragment {
         mSearchPanel               = view.findViewById(R.id.search__search_panel);
         mSearchField               = view.findViewById(R.id.search__search_field);
         mSearchBtnClear            = mSearchField.findViewById(R.id.search__search_btn_close);
-        mSearchBtn                 = view.findViewById(R.id.search__search_btn);
+       mSearchBtn                 = view.findViewById(R.id.search__search_btn);
         mSearchBtnClose            = view.findViewById(R.id.search__search_btn_close);
         mChipsScroll               = view.findViewById(R.id.search__search_chips_scroll);
         mChipGroup                 = view.findViewById(R.id.search__search_chips_group);
