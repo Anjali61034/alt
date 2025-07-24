@@ -37,20 +37,19 @@ public class DebugAdapterEddystone extends DebugAdapterBaseExpanded<DebugViewHol
         if (position == 0) {
             holder.title.setText(String.format(Locale.ENGLISH, "EDDYSTONE (%d), entries/sec: %.1f", mCurrentList.size(), (float) mCurrentList.size()));
             super.onBindViewHolder(holder, position);
-        }
-        else {
+        } else {
             try {
                 SignalMeasurement result = mCurrentList.get(position - 1);
-                String[] ids = result.getId().split(",");
-                String address = ids[0].substring(1, 15 - ids[1].length()) + "…, " + ids[1].substring(0, ids[1].length() - 1);
+                String id = result.getId();
 
-                holder.uuid.    setText(address);
-                holder.rssi.    setText(String.format(Locale.ENGLISH, "%.1f", result.getRssi()));
+                // Display the formatted identifier (namespace and instance for Eddystone UID)
+                holder.uuid.setText(id);
+                holder.rssi.setText(String.format(Locale.ENGLISH, "%.1f", result.getRssi()));
                 holder.distance.setText(String.format(Locale.ENGLISH, "%.1fm", result.getDistance()));
-            } catch (IndexOutOfBoundsException e) {
-                holder.uuid.    setText("---");
-                holder.rssi.    setText(null);
-                holder.distance.setText(null);
+            } catch (Exception e) {
+                holder.uuid.setText("---");
+                holder.rssi.setText("---");
+                holder.distance.setText("---");
             }
         }
     }

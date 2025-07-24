@@ -34,6 +34,8 @@ import com.navigine.navigine.demo.adapters.debug.DebugAdapterInfo;
 import com.navigine.navigine.demo.utils.BeaconScannerManager;
 import com.navigine.navigine.demo.viewmodel.SharedViewModel;
 
+import org.altbeacon.beacon.BeaconData;
+
 import java.lang.reflect.Field;
 import java.util.AbstractList;
 import java.util.ArrayList;
@@ -130,9 +132,13 @@ public class DebugFragment extends BaseFragment implements BeaconScannerManager.
                 // Categorize beacons based on their type
                 if (beacon.beaconTypeCode == 0x4c000215) { // iBeacon
                     beaconEntries.add(beacon);
-                } else if (beacon.serviceUuid == 0xfeaa) { // Eddystone
+                }else if (beacon.serviceUuid == 0xfeaa || beacon.beaconTypeCode == 0x20) {
+                    Log.d(TAG, "→ Eddystone added: " + beacon.macAddress + ", namespace=" + beacon.namespace + ", instance=" + beacon.instance);
+
                     eddyEntries.add(beacon);
-                } else { // Others (BLE, AltBeacon, etc.)
+
+                }
+                else { // Others (BLE, AltBeacon, etc.)
                     bleEntries.add(beacon);
                 }
             }
@@ -157,7 +163,15 @@ public class DebugFragment extends BaseFragment implements BeaconScannerManager.
 
         // Update Eddystone
         if (!eddyEntries.isEmpty()) {
+            Log.d(TAG, "Eddystone entries:");
+            for (BeaconScannerManager.BeaconData entry : eddyEntries) {
+                Log.d(TAG, "-> Beacon typeCode: " + entry.beaconTypeCode
+                        + ", serviceUuid: " + entry.serviceUuid);
+
+            }
+
             timestampEddystones = System.currentTimeMillis();
+
             debugEddystoneAdapter.submit(convertToSignalMeasurements(eddyEntries));
         } else if (System.currentTimeMillis() - timestampEddystones >= DEBUG_TIMEOUT_NO_SIGNAL) {
             debugEddystoneAdapter.submit(Collections.<SignalMeasurement>emptyList());
@@ -165,6 +179,7 @@ public class DebugFragment extends BaseFragment implements BeaconScannerManager.
 
         // Update BLE
         if (!bleEntries.isEmpty()) {
+            Log.d(TAG, "Updating Eddystone adapter with " + eddyEntries.size() + " items");
             timestampBle = System.currentTimeMillis();
             debugBleAdapter.submit(convertToSignalMeasurements(bleEntries));
         } else if (System.currentTimeMillis() - timestampBle >= DEBUG_TIMEOUT_NO_SIGNAL) {
@@ -173,15 +188,37 @@ public class DebugFragment extends BaseFragment implements BeaconScannerManager.
     }
 
     // Convert List<BeaconData> to List<SignalMeasurement>
+// Convert List<BeaconData> to List<SignalMeasurement>
     private List<SignalMeasurement> convertToSignalMeasurements(List<BeaconScannerManager.BeaconData> beaconDataList) {
         List<SignalMeasurement> measurements = new ArrayList<>();
         for (BeaconScannerManager.BeaconData beacon : beaconDataList) {
             try {
                 // Create SignalMeasurement with required parameters
                 SignalType signalType = determineSignalType(beacon);
-                String identifier = beacon.macAddress != null ? beacon.macAddress : "unknown";
+
+                // Create identifier based on beacon type
+                String identifier;
+                if (beacon.serviceUuid == 0xfeaa && beacon.isEddystoneUID) {
+                    // For Eddystone UID, show last 3-4 digits of namespace and complete instance
+                    String namespace = beacon.namespace != null ? beacon.namespace : "N/A";
+                    String instance = beacon.instance != null ? beacon.instance : "N/A";
+
+                    // Get last 4 digits of namespace
+                    String shortNamespace = namespace.length() > 4 ?
+                            namespace.substring(namespace.length() - 4) : namespace;
+
+                    identifier = "NS:" + shortNamespace + " | ID:" + instance;
+                }
+                else if (beacon.serviceUuid == 0xfeaa) {
+                    // For other Eddystone types (TLM, URL), show MAC as fallback
+                    identifier = beacon.macAddress != null ? beacon.macAddress : "unknown";
+                } else {
+                    // For iBeacon and others, show MAC address
+                    identifier = beacon.macAddress != null ? beacon.macAddress : "unknown";
+                }
+
                 float rssi = beacon.rssi;
-                float distance = calculateDistance(beacon.rssi); // Estimate distance from RSSI
+                float distance = calculateDistance(beacon.rssi);
                 long timestamp = System.currentTimeMillis();
 
                 SignalMeasurement measurement = new SignalMeasurement(signalType, identifier, rssi, distance, timestamp);
@@ -192,6 +229,7 @@ public class DebugFragment extends BaseFragment implements BeaconScannerManager.
         }
         return measurements;
     }
+
 
     // Helper method to determine signal type based on beacon data
     private SignalType determineSignalType(BeaconScannerManager.BeaconData beacon) {

@@ -44,6 +44,10 @@ public class BeaconScannerManager implements BeaconConsumer, RangeNotifier {
         public int minor;
         public float rssi;
         public float distance;
+        public boolean isEddystoneUID;
+        public boolean isEddystoneTLM;
+        public String namespace;      // For UID
+        public String instance;
         public String macAddress;
         public int serviceUuid;
         public int beaconTypeCode;
@@ -91,6 +95,15 @@ public class BeaconScannerManager implements BeaconConsumer, RangeNotifier {
         beaconManager = BeaconManager.getInstanceForApplication(application);
 
         // Add support for multiple beacon formats
+        // Eddystone TLM format (Battery, Uptime, etc.)
+        beaconManager.getBeaconParsers().add(
+                new BeaconParser().setBeaconLayout(BeaconParser.EDDYSTONE_TLM_LAYOUT));
+
+        beaconManager.getBeaconParsers().add(
+                new BeaconParser().setBeaconLayout(BeaconParser.EDDYSTONE_UID_LAYOUT));
+
+
+
         // iBeacon format
         beaconManager.getBeaconParsers().add(new BeaconParser()
                 .setBeaconLayout("m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24"));
@@ -99,9 +112,6 @@ public class BeaconScannerManager implements BeaconConsumer, RangeNotifier {
         beaconManager.getBeaconParsers().add(new BeaconParser()
                 .setBeaconLayout("m:2-3=beac,i:4-19,i:20-21,i:22-23,p:24-24,d:25-25"));
 
-        // Eddystone UID format
-        beaconManager.getBeaconParsers().add(new BeaconParser()
-                .setBeaconLayout("s:0-1=feaa,m:2-2=00,p:3-3:-41,i:4-13,i:14-19"));
 
         // Eddystone URL format
         beaconManager.getBeaconParsers().add(new BeaconParser()
@@ -263,6 +273,11 @@ public class BeaconScannerManager implements BeaconConsumer, RangeNotifier {
         List<BeaconData> detectedBeacons = new ArrayList<>();
 
         for (Beacon beacon : beacons) {
+            Log.d(TAG, "Beacon detected → typeCode: " + beacon.getBeaconTypeCode()
+                    + ", serviceUuid: " + beacon.getServiceUuid()
+                    + ", mac: " + beacon.getBluetoothAddress()
+                    + ", rssi: " + beacon.getRssi());
+
             try {
                 BeaconData beaconData = new BeaconData();
 
@@ -271,21 +286,41 @@ public class BeaconScannerManager implements BeaconConsumer, RangeNotifier {
                 beaconData.distance = (float) beacon.getDistance();
                 beaconData.macAddress = beacon.getBluetoothAddress();
 
-                // Handle identifiers safely - THIS PREVENTS THE CRASH
                 List<Identifier> identifiers = beacon.getIdentifiers();
 
+                // Handle Eddystone beacons FIRST and don't overwrite serviceUuid
+                boolean isEddystone = false;
+                if (beacon.getServiceUuid() == 0xfeaa) {
+                    isEddystone = true;
+                    int typeCode = beacon.getBeaconTypeCode();
+                    beaconData.serviceUuid = 0xfeaa;  // Keep this value
+                    beaconData.beaconTypeCode = typeCode;
+
+                    if (typeCode == 0x00) { // Eddystone-UID
+                        beaconData.isEddystoneUID = true;
+                        if (identifiers.size() >= 2) {
+                            beaconData.namespace = identifiers.get(0).toString();
+                            beaconData.instance = identifiers.get(1).toString();
+                        }
+                    } else if (typeCode == 0x20) { // Eddystone-TLM
+                        beaconData.isEddystoneTLM = true;
+                    }
+                }
+
+                // Handle identifiers - but DON'T overwrite serviceUuid for Eddystone
                 if (identifiers.size() >= 1) {
                     Identifier id1 = identifiers.get(0);
                     if (id1 != null) {
                         String idString = id1.toString();
                         beaconData.uuid = idString;
 
-                        // For UUIDs (typically 36 characters with dashes), handle specially
-                        if (idString.length() >= 36) {
-                            beaconData.serviceUuid = getServiceUuid(id1);
-                        } else {
-                            // For shorter identifiers, convert safely
-                            beaconData.serviceUuid = safeIdentifierToInt(id1);
+                        // Only set serviceUuid if not already set (i.e., not Eddystone)
+                        if (!isEddystone) {
+                            if (idString.length() >= 36) {
+                                beaconData.serviceUuid = getServiceUuid(id1);
+                            } else {
+                                beaconData.serviceUuid = safeIdentifierToInt(id1);
+                            }
                         }
                     }
                 }
@@ -298,23 +333,19 @@ public class BeaconScannerManager implements BeaconConsumer, RangeNotifier {
                     beaconData.minor = safeIdentifierToInt(identifiers.get(2));
                 }
 
-                // Set beacon type based on the beacon format
-                int beaconTypeCode = beacon.getBeaconTypeCode();
-                if (beaconTypeCode != 0) {
-                    beaconData.beaconTypeCode = beaconTypeCode;
-                } else {
-                    // Determine beacon type based on identifier pattern
-                    if (identifiers.size() == 3) {
-                        String firstId = identifiers.get(0).toString();
-                        if (firstId.length() >= 36) { // UUID format
-                            beaconData.beaconTypeCode = 0x4c000215; // iBeacon
-                        } else {
-                            beaconData.beaconTypeCode = 0; // Unknown
-                        }
-                    } else if (identifiers.size() <= 2) {
-                        beaconData.beaconTypeCode = 0xfeaa; // Eddystone
+                // Set beacon type code if not already set
+                if (beaconData.beaconTypeCode == 0) {
+                    int beaconTypeCode = beacon.getBeaconTypeCode();
+                    if (beaconTypeCode != 0) {
+                        beaconData.beaconTypeCode = beaconTypeCode;
                     } else {
-                        beaconData.beaconTypeCode = 0; // Unknown
+                        // Determine beacon type based on identifier pattern
+                        if (identifiers.size() == 3) {
+                            String firstId = identifiers.get(0).toString();
+                            if (firstId.length() >= 36) {
+                                beaconData.beaconTypeCode = 0x4c000215; // iBeacon
+                            }
+                        }
                     }
                 }
 
@@ -322,7 +353,6 @@ public class BeaconScannerManager implements BeaconConsumer, RangeNotifier {
 
             } catch (Exception e) {
                 Log.e(TAG, "Error processing beacon: " + e.getMessage(), e);
-                // Continue processing other beacons even if one fails
             }
         }
 
@@ -339,6 +369,7 @@ public class BeaconScannerManager implements BeaconConsumer, RangeNotifier {
             Log.d(TAG, "Detected " + detectedBeacons.size() + " beacons");
         }
     }
+
 
     // Cleanup method
     public void destroy() {
