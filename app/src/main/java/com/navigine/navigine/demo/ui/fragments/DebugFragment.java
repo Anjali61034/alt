@@ -19,6 +19,18 @@ import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.DividerItemDecoration;
 import androidx.recyclerview.widget.RecyclerView;
 
+// Add these imports to your current code
+import com.navigine.idl.java.MeasurementListener;
+import com.navigine.idl.java.PositionListener;
+import com.navigine.idl.java.SensorMeasurement;
+import com.navigine.idl.java.SensorType;
+import com.navigine.idl.java.Vector3d;
+import com.navigine.navigine.demo.adapters.debug.DebugAdapterWifi;
+import com.navigine.navigine.demo.adapters.debug.DebugAdapterSensors;
+import com.navigine.navigine.demo.utils.NavigineSdkManager;
+import java.util.HashMap;
+
+
 import com.navigine.idl.java.Location;
 import com.navigine.idl.java.LocationPoint;
 import com.navigine.idl.java.Position;
@@ -58,6 +70,17 @@ public class DebugFragment extends BaseFragment implements BeaconScannerManager.
     private RecyclerView mListViewEddystone = null;
     private RecyclerView mListViewBle = null;
 
+    // Add these variables to your class
+    private RecyclerView mListViewWifi = null;
+    private RecyclerView mListViewSensors = null;
+    private List<SignalMeasurement> wifiEntries = new ArrayList<>();
+    private List<String[]> sensorEntries = new ArrayList<>();
+    private DebugAdapterWifi debugWifiAdapter = null;
+    private DebugAdapterSensors debugSensorsAdapter = null;
+    private PositionListener mPositionListener = null;
+    private MeasurementListener mMeasurementListener = null;
+
+
     private ArrayList<String[]> infoEntries = new ArrayList<>();
     private List<BeaconScannerManager.BeaconData> beaconEntries = new ArrayList<>();
     private List<BeaconScannerManager.BeaconData> eddyEntries = new ArrayList<>();
@@ -87,6 +110,7 @@ public class DebugFragment extends BaseFragment implements BeaconScannerManager.
         getOsVersion();
         initViewModels();
         initAdapters();
+        initListeners();  // Add this line
 
         // Get beacon scanner instance
         beaconScanner = BeaconScannerManager.getInstance(requireActivity().getApplication());
@@ -107,6 +131,8 @@ public class DebugFragment extends BaseFragment implements BeaconScannerManager.
     @Override
     public void onResume() {
         super.onResume();
+        NavigineSdkManager.NavigationManager.addPositionListener(mPositionListener);
+        NavigineSdkManager.MeasurementManager.addMeasurementListener(mMeasurementListener);
         // Register as listener to receive beacon updates
         beaconScanner.addListener(this);
     }
@@ -114,6 +140,10 @@ public class DebugFragment extends BaseFragment implements BeaconScannerManager.
     @Override
     public void onPause() {
         super.onPause();
+
+        NavigineSdkManager.NavigationManager.removePositionListener(mPositionListener);
+        NavigineSdkManager.MeasurementManager.removeMeasurementListener(mMeasurementListener);
+
         // Unregister listener but don't stop scanning
         beaconScanner.removeListener(this);
     }
@@ -297,12 +327,16 @@ public class DebugFragment extends BaseFragment implements BeaconScannerManager.
         debugBeaconsAdapter = new DebugAdapterBeacons();
         debugEddystoneAdapter = new DebugAdapterEddystone();
         debugBleAdapter = new DebugAdapterBle();
+        debugWifiAdapter = new DebugAdapterWifi();        // Add this
+        debugSensorsAdapter = new DebugAdapterSensors();  // Add this
     }
 
     private void initViews(View view) {
         mWindow = requireActivity().getWindow();
         mRootView = view.findViewById(R.id.debug__root);
         mListViewInfo = view.findViewById(R.id.debug__info);
+        mListViewWifi = view.findViewById(R.id.debug__wifi);      // Add this
+        mListViewSensors = view.findViewById(R.id.debug__sensors);
         mListViewBeacons = view.findViewById(R.id.debug__beacons);
         mListViewEddystone = view.findViewById(R.id.debug__eddystone);
         mListViewBle = view.findViewById(R.id.debug__ble);
@@ -313,12 +347,15 @@ public class DebugFragment extends BaseFragment implements BeaconScannerManager.
         mDivider.setDrawable(ContextCompat.getDrawable(requireActivity(), R.drawable.divider_transparent_list_item));
         mListViewInfo.addItemDecoration(mDivider);
         mListViewBeacons.addItemDecoration(mDivider);
+        mListViewWifi.addItemDecoration(mDivider);     // Add this
+        mListViewSensors.addItemDecoration(mDivider);
         mListViewEddystone.addItemDecoration(mDivider);
         mListViewBle.addItemDecoration(mDivider);
 
         LayoutAnimationController animationController = AnimationUtils.loadLayoutAnimation(requireActivity(), R.anim.layout_animation_fall_down);
         mListViewBeacons.setLayoutAnimation(animationController);
         mListViewEddystone.setLayoutAnimation(animationController);
+        mListViewWifi.setLayoutAnimation(animationController);
         mListViewBle.setLayoutAnimation(animationController);
     }
 
@@ -327,7 +364,117 @@ public class DebugFragment extends BaseFragment implements BeaconScannerManager.
         mListViewBeacons.setAdapter(debugBeaconsAdapter);
         mListViewEddystone.setAdapter(debugEddystoneAdapter);
         mListViewBle.setAdapter(debugBleAdapter);
+        mListViewWifi.setAdapter(debugWifiAdapter);        // Add this
+        mListViewSensors.setAdapter(debugSensorsAdapter);  // Add this
     }
+
+    private void initListeners() {
+        mPositionListener = new PositionListener() {
+            @Override
+            public void onPositionUpdated(Position position) {
+                updateInfoGeneral(position);
+            }
+
+            @Override
+            public void onPositionError(Error error) {
+                updateInfoGeneral(null);
+            }
+        };
+
+        mMeasurementListener = new MeasurementListener() {
+            @Override
+            public void onSensorMeasurementDetected(HashMap<SensorType, SensorMeasurement> hashMap) {
+                sensorEntries.clear();
+
+                // Accelerometer
+                if (hashMap.containsKey(SensorType.ACCELEROMETER)) {
+                    SensorMeasurement measurement = hashMap.get(SensorType.ACCELEROMETER);
+                    if (measurement != null) {
+                        Vector3d values = measurement.getValues();
+                        sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_1), String.format(Locale.ENGLISH, "%.4f, %.4f, %.4f", values.getX(), values.getY(), values.getZ())});
+                    } else {
+                        sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_1), "---"});
+                    }
+                } else {
+                    sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_1), "---"});
+                }
+
+                // Magnetometer
+                if (hashMap.containsKey(SensorType.MAGNETOMETER)) {
+                    SensorMeasurement measurement = hashMap.get(SensorType.MAGNETOMETER);
+                    if (measurement != null) {
+                        Vector3d values = measurement.getValues();
+                        sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_2), String.format(Locale.ENGLISH, "%.4f, %.4f, %.4f", values.getX(), values.getY(), values.getZ())});
+                    } else {
+                        sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_2), "---"});
+                    }
+                } else {
+                    sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_2), "---"});
+                }
+
+                // Gyroscope
+                if (hashMap.containsKey(SensorType.GYROSCOPE)) {
+                    SensorMeasurement measurement = hashMap.get(SensorType.GYROSCOPE);
+                    if (measurement != null) {
+                        Vector3d values = measurement.getValues();
+                        sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_3), String.format(Locale.ENGLISH, "%.4f, %.4f, %.4f", values.getX(), values.getY(), values.getZ())});
+                    } else {
+                        sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_3), "---"});
+                    }
+                } else {
+                    sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_3), "---"});
+                }
+
+                // Barometer
+                if (hashMap.containsKey(SensorType.BAROMETER)) {
+                    SensorMeasurement measurement = hashMap.get(SensorType.BAROMETER);
+                    if (measurement != null) {
+                        Vector3d values = measurement.getValues();
+                        sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_4), String.format(Locale.ENGLISH, "%.2f", values.getX())});
+                    } else {
+                        sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_4), "---"});
+                    }
+                } else {
+                    sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_4), "---"});
+                }
+
+                // Orientation
+                if (hashMap.containsKey(SensorType.ORIENTATION)) {
+                    SensorMeasurement measurement = hashMap.get(SensorType.ORIENTATION);
+                    if (measurement != null) {
+                        Vector3d values = measurement.getValues();
+                        sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_5), String.format(Locale.ENGLISH, "%.2f", values.getX() * 180 / 3.14159f)});
+                    } else {
+                        sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_5), "---"});
+                    }
+                } else {
+                    sensorEntries.add(new String[]{getString(R.string.debug_sensor_field_5), "---"});
+                }
+
+                if (!sensorEntries.isEmpty()) {
+                    debugSensorsAdapter.submit(sensorEntries);
+                }
+            }
+
+            @Override
+            public void onSignalMeasurementDetected(HashMap<String, SignalMeasurement> hashMap) {
+                wifiEntries.clear();
+
+                for (SignalMeasurement signal : hashMap.values()) {
+                    if (signal.getType() == SignalType.WIFI) {
+                        wifiEntries.add(signal);
+                    }
+                }
+
+                Collections.sort(wifiEntries, (result1, result2) -> Float.compare(result2.getRssi(), result1.getRssi()));
+
+                if (!wifiEntries.isEmpty()) {
+                    debugWifiAdapter.submit(wifiEntries);
+                }
+            }
+        };
+    }
+
 
     private void setAdaptersParams() {
         DebugAdapterBase.setRootView(mRootView);
@@ -339,6 +486,7 @@ public class DebugFragment extends BaseFragment implements BeaconScannerManager.
 
     private void updateInfoGeneral(@Nullable Position position) {
         infoEntries.clear();
+
         infoEntries.add(new String[]{getString(R.string.debug_info_field_1), String.format(Locale.ENGLISH, "%s", BuildConfig.VERSION_NAME)});
         infoEntries.add(new String[]{getString(R.string.debug_info_field_2), String.format("%s", TEST_DEVICE_ID)});
 
@@ -361,8 +509,11 @@ public class DebugFragment extends BaseFragment implements BeaconScannerManager.
             infoEntries.add(new String[]{getString(R.string.debug_info_field_4), "---"});
         }
 
+        infoEntries.add(new String[]{getString(R.string.debug_info_field_6), String.format(Locale.ENGLISH, "%s [ %s (%s) ] ", Build.MODEL, Build.VERSION.RELEASE, OS_VERSION)});
+
         debugInfoAdapter.submit(infoEntries);
     }
+
 
     @Override
     protected void updateStatusBar() {
