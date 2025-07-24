@@ -4,6 +4,8 @@ import static com.navigine.navigine.demo.utils.Constants.TAG;
 
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -59,7 +61,7 @@ import java.util.UUID;
 public class DebugFragment extends BaseFragment implements BeaconScannerManager.BeaconScanListener {
 
     private static String OS_VERSION = "UNKNOWN";
-    public static final int DEBUG_TIMEOUT_NO_SIGNAL = 5000;
+    public static final int DEBUG_TIMEOUT_NO_SIGNAL = 8000; // Increased to 8 seconds
 
     private SharedViewModel viewModel = null;
 
@@ -80,7 +82,6 @@ public class DebugFragment extends BaseFragment implements BeaconScannerManager.
     private PositionListener mPositionListener = null;
     private MeasurementListener mMeasurementListener = null;
 
-
     private ArrayList<String[]> infoEntries = new ArrayList<>();
     private List<BeaconScannerManager.BeaconData> beaconEntries = new ArrayList<>();
     private List<BeaconScannerManager.BeaconData> eddyEntries = new ArrayList<>();
@@ -99,8 +100,39 @@ public class DebugFragment extends BaseFragment implements BeaconScannerManager.
     private BeaconScannerManager beaconScanner;
 
     private long timestampBeacons = 0L;
+    private long timestampWifi = 0L;
     private long timestampEddystones = 0L;
     private long timestampBle = 0L;
+
+    // Add synchronization objects
+    private final Object wifiLock = new Object();
+    private final Object bleLock = new Object();
+
+    // Add periodic update handler with reduced frequency
+    private Handler updateHandler = new Handler(Looper.getMainLooper());
+    private Runnable updateRunnable = new Runnable() {
+        @Override
+        public void run() {
+            long currentTime = System.currentTimeMillis();
+
+            // Only clear stale data, don't interfere with active updates
+            synchronized (wifiLock) {
+                if (currentTime - timestampWifi >= DEBUG_TIMEOUT_NO_SIGNAL && !wifiEntries.isEmpty()) {
+                    Log.d(TAG, "Clearing stale WiFi data due to timeout");
+                    wifiEntries.clear();
+                    debugWifiAdapter.submit(Collections.<SignalMeasurement>emptyList());
+                }
+            }
+
+            // Check beacon timeouts separately
+            synchronized (bleLock) {
+                updateBeaconTimeouts(currentTime);
+            }
+
+            // Schedule next update with longer interval
+            updateHandler.postDelayed(this, 3000); // Check every 3 seconds instead of 1
+        }
+    };
 
     private static final String TEST_DEVICE_ID = UUID.randomUUID().toString();
 
@@ -113,8 +145,10 @@ public class DebugFragment extends BaseFragment implements BeaconScannerManager.
         initListeners();  // Add this line
 
         // Get beacon scanner instance
+        long currentTime = System.currentTimeMillis();
+        timestampWifi = currentTime;
         beaconScanner = BeaconScannerManager.getInstance(requireActivity().getApplication());
-        timestampBeacons = timestampEddystones = timestampBle = System.currentTimeMillis();
+        timestampBeacons = timestampEddystones = timestampBle = currentTime;
     }
 
     @Override
@@ -135,6 +169,9 @@ public class DebugFragment extends BaseFragment implements BeaconScannerManager.
         NavigineSdkManager.MeasurementManager.addMeasurementListener(mMeasurementListener);
         // Register as listener to receive beacon updates
         beaconScanner.addListener(this);
+
+        // Start periodic updates
+        updateHandler.post(updateRunnable);
     }
 
     @Override
@@ -146,6 +183,9 @@ public class DebugFragment extends BaseFragment implements BeaconScannerManager.
 
         // Unregister listener but don't stop scanning
         beaconScanner.removeListener(this);
+
+        // Stop periodic updates
+        updateHandler.removeCallbacks(updateRunnable);
     }
 
     // BeaconScanListener interface method
@@ -153,72 +193,84 @@ public class DebugFragment extends BaseFragment implements BeaconScannerManager.
     public void onBeaconsDetected(List<BeaconScannerManager.BeaconData> beacons) {
         if (getActivity() == null) return;
 
+        Log.d(TAG, "BLE beacons detected: " + beacons.size());
+
         getActivity().runOnUiThread(() -> {
-            beaconEntries.clear();
-            eddyEntries.clear();
-            bleEntries.clear();
+            synchronized (bleLock) {
+                beaconEntries.clear();
+                eddyEntries.clear();
+                bleEntries.clear();
 
-            for (BeaconScannerManager.BeaconData beacon : beacons) {
-                // Categorize beacons based on their type
-                if (beacon.beaconTypeCode == 0x4c000215) { // iBeacon
-                    beaconEntries.add(beacon);
-                }else if (beacon.serviceUuid == 0xfeaa || beacon.beaconTypeCode == 0x20) {
-                    Log.d(TAG, "→ Eddystone added: " + beacon.macAddress + ", namespace=" + beacon.namespace + ", instance=" + beacon.instance);
-
-                    eddyEntries.add(beacon);
-
+                for (BeaconScannerManager.BeaconData beacon : beacons) {
+                    // Categorize beacons based on their type
+                    if (beacon.beaconTypeCode == 0x4c000215) { // iBeacon
+                        beaconEntries.add(beacon);
+                    }else if (beacon.serviceUuid == 0xfeaa || beacon.beaconTypeCode == 0x20) {
+                        Log.d(TAG, "→ Eddystone added: " + beacon.macAddress + ", namespace=" + beacon.namespace + ", instance=" + beacon.instance);
+                        eddyEntries.add(beacon);
+                    }
+                    else { // Others (BLE, AltBeacon, etc.)
+                        bleEntries.add(beacon);
+                    }
                 }
-                else { // Others (BLE, AltBeacon, etc.)
-                    bleEntries.add(beacon);
-                }
+
+                // Sort by RSSI (strongest first)
+                Collections.sort(beaconEntries, (b1, b2) -> Float.compare(b2.rssi, b1.rssi));
+                Collections.sort(eddyEntries, (b1, b2) -> Float.compare(b2.rssi, b1.rssi));
+                Collections.sort(bleEntries, (b1, b2) -> Float.compare(b2.rssi, b1.rssi));
+
+                updateBeaconAdapters();
             }
-
-            // Sort by RSSI (strongest first)
-            Collections.sort(beaconEntries, (b1, b2) -> Float.compare(b2.rssi, b1.rssi));
-            Collections.sort(eddyEntries, (b1, b2) -> Float.compare(b2.rssi, b1.rssi));
-            Collections.sort(bleEntries, (b1, b2) -> Float.compare(b2.rssi, b1.rssi));
-
-            updateBeaconAdapters();
         });
     }
 
     private void updateBeaconAdapters() {
+        long currentTime = System.currentTimeMillis();
+
         // Update iBeacons
         if (!beaconEntries.isEmpty()) {
-            timestampBeacons = System.currentTimeMillis();
+            timestampBeacons = currentTime;
             debugBeaconsAdapter.submit(convertToSignalMeasurements(beaconEntries));
-        } else if (System.currentTimeMillis() - timestampBeacons >= DEBUG_TIMEOUT_NO_SIGNAL) {
-            debugBeaconsAdapter.submit(Collections.<SignalMeasurement>emptyList());
+            Log.d(TAG, "iBeacon adapter updated with " + beaconEntries.size() + " entries");
         }
 
         // Update Eddystone
         if (!eddyEntries.isEmpty()) {
-            Log.d(TAG, "Eddystone entries:");
-            for (BeaconScannerManager.BeaconData entry : eddyEntries) {
-                Log.d(TAG, "-> Beacon typeCode: " + entry.beaconTypeCode
-                        + ", serviceUuid: " + entry.serviceUuid);
-
-            }
-
-            timestampEddystones = System.currentTimeMillis();
-
+            timestampEddystones = currentTime;
             debugEddystoneAdapter.submit(convertToSignalMeasurements(eddyEntries));
-        } else if (System.currentTimeMillis() - timestampEddystones >= DEBUG_TIMEOUT_NO_SIGNAL) {
-            debugEddystoneAdapter.submit(Collections.<SignalMeasurement>emptyList());
+            Log.d(TAG, "Eddystone adapter updated with " + eddyEntries.size() + " entries");
         }
 
         // Update BLE
         if (!bleEntries.isEmpty()) {
-            Log.d(TAG, "Updating Eddystone adapter with " + eddyEntries.size() + " items");
-            timestampBle = System.currentTimeMillis();
+            timestampBle = currentTime;
             debugBleAdapter.submit(convertToSignalMeasurements(bleEntries));
-        } else if (System.currentTimeMillis() - timestampBle >= DEBUG_TIMEOUT_NO_SIGNAL) {
+            Log.d(TAG, "BLE adapter updated with " + bleEntries.size() + " entries");
+        }
+    }
+
+    private void updateBeaconTimeouts(long currentTime) {
+        // Only clear if timeout exceeded and no recent updates
+        if (currentTime - timestampBeacons >= DEBUG_TIMEOUT_NO_SIGNAL && !beaconEntries.isEmpty()) {
+            beaconEntries.clear();
+            debugBeaconsAdapter.submit(Collections.<SignalMeasurement>emptyList());
+            Log.d(TAG, "Cleared stale iBeacon data");
+        }
+
+        if (currentTime - timestampEddystones >= DEBUG_TIMEOUT_NO_SIGNAL && !eddyEntries.isEmpty()) {
+            eddyEntries.clear();
+            debugEddystoneAdapter.submit(Collections.<SignalMeasurement>emptyList());
+            Log.d(TAG, "Cleared stale Eddystone data");
+        }
+
+        if (currentTime - timestampBle >= DEBUG_TIMEOUT_NO_SIGNAL && !bleEntries.isEmpty()) {
+            bleEntries.clear();
             debugBleAdapter.submit(Collections.<SignalMeasurement>emptyList());
+            Log.d(TAG, "Cleared stale BLE data");
         }
     }
 
     // Convert List<BeaconData> to List<SignalMeasurement>
-// Convert List<BeaconData> to List<SignalMeasurement>
     private List<SignalMeasurement> convertToSignalMeasurements(List<BeaconScannerManager.BeaconData> beaconDataList) {
         List<SignalMeasurement> measurements = new ArrayList<>();
         for (BeaconScannerManager.BeaconData beacon : beaconDataList) {
@@ -260,29 +312,16 @@ public class DebugFragment extends BaseFragment implements BeaconScannerManager.
         return measurements;
     }
 
-
     // Helper method to determine signal type based on beacon data
     private SignalType determineSignalType(BeaconScannerManager.BeaconData beacon) {
-        // Check what SignalType enum values are actually available in your project
-        // Common Navigine SignalType values based on documentation:
-
         if (beacon.beaconTypeCode == 0x4c000215) {
             return SignalType.BEACON; // iBeacon
         } else if (beacon.serviceUuid == 0xfeaa) {
             return SignalType.EDDYSTONE; // Eddystone
         } else {
-            // If BLE doesn't exist, try these alternatives:
-            // return SignalType.WIFI;
-            // return SignalType.BLUETOOTH;
-            // return SignalType.OTHER;
-            // return SignalType.UNKNOWN;
-
-            // For now, let's use WIFI as fallback (change this based on your actual enum values)
             try {
                 return SignalType.WIFI;
             } catch (Exception e) {
-                // If WIFI doesn't exist either, you'll need to check your SignalType enum
-                // and replace with an appropriate value
                 Log.e(TAG, "SignalType enum value not found, check your SignalType class");
                 return SignalType.BEACON; // Fallback to a known working value
             }
@@ -458,23 +497,33 @@ public class DebugFragment extends BaseFragment implements BeaconScannerManager.
 
             @Override
             public void onSignalMeasurementDetected(HashMap<String, SignalMeasurement> hashMap) {
-                wifiEntries.clear();
+                if (getActivity() == null) return;
 
-                for (SignalMeasurement signal : hashMap.values()) {
-                    if (signal.getType() == SignalType.WIFI) {
-                        wifiEntries.add(signal);
+                Log.d(TAG, "WiFi signals detected: " + hashMap.size());
+
+                getActivity().runOnUiThread(() -> {
+                    synchronized (wifiLock) {
+                        wifiEntries.clear();
+
+                        for (SignalMeasurement signal : hashMap.values()) {
+                            if (signal.getType() == SignalType.WIFI) {
+                                wifiEntries.add(signal);
+                            }
+                        }
+
+                        Collections.sort(wifiEntries, (result1, result2) -> Float.compare(result2.getRssi(), result1.getRssi()));
+
+                        if (!wifiEntries.isEmpty()) {
+                            timestampWifi = System.currentTimeMillis();
+                            debugWifiAdapter.submit(wifiEntries);
+                            Log.d(TAG, "WiFi adapter updated with " + wifiEntries.size() + " entries");
+                        }
+                        // Note: Don't clear here immediately, let the timeout handler do it
                     }
-                }
-
-                Collections.sort(wifiEntries, (result1, result2) -> Float.compare(result2.getRssi(), result1.getRssi()));
-
-                if (!wifiEntries.isEmpty()) {
-                    debugWifiAdapter.submit(wifiEntries);
-                }
+                });
             }
         };
     }
-
 
     private void setAdaptersParams() {
         DebugAdapterBase.setRootView(mRootView);
@@ -513,7 +562,6 @@ public class DebugFragment extends BaseFragment implements BeaconScannerManager.
 
         debugInfoAdapter.submit(infoEntries);
     }
-
 
     @Override
     protected void updateStatusBar() {
