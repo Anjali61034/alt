@@ -1,12 +1,21 @@
 package com.navigine.navigine.demo.utils;
 
+import android.Manifest;
 import android.app.Application;
 import android.bluetooth.BluetoothAdapter;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.os.Build;
 import android.os.RemoteException;
 import android.util.Log;
+import android.bluetooth.BluetoothManager;
+import android.bluetooth.le.BluetoothLeScanner;
+import android.bluetooth.le.ScanCallback;
+import android.bluetooth.le.ScanResult;
+import android.bluetooth.le.ScanSettings;
+import android.os.Handler;
+import android.os.Looper;
 
 import org.altbeacon.beacon.Beacon;
 import org.altbeacon.beacon.BeaconConsumer;
@@ -23,12 +32,22 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import static com.navigine.navigine.demo.utils.Constants.TAG;
 
+import androidx.annotation.RequiresApi;
+import androidx.annotation.RequiresPermission;
+
 public class BeaconScannerManager implements BeaconConsumer, RangeNotifier {
 
     private static BeaconScannerManager instance;
     private BeaconManager beaconManager;
     private Application application;
     private boolean isScanning = false;
+
+    // Bluetooth LE scanner
+    private BluetoothLeScanner bleScanner;
+    private boolean isBleScanning = false;
+    private Handler mainHandler = new Handler(Looper.getMainLooper());
+    private List<BeaconData> rawBleDevices = new ArrayList<>();
+
     private boolean isBeaconServiceConnected = false;
 
     // Thread-safe list for listeners
@@ -78,7 +97,7 @@ public class BeaconScannerManager implements BeaconConsumer, RangeNotifier {
         void onBeaconsDetected(List<BeaconData> beacons);
     }
 
-    // Singleton pattern
+    // Singleton accessor
     public static synchronized BeaconScannerManager getInstance(Application application) {
         if (instance == null) {
             instance = new BeaconScannerManager(application);
@@ -95,55 +114,71 @@ public class BeaconScannerManager implements BeaconConsumer, RangeNotifier {
         beaconManager = BeaconManager.getInstanceForApplication(application);
 
         // Add support for multiple beacon formats
-        // Eddystone TLM format (Battery, Uptime, etc.)
         beaconManager.getBeaconParsers().add(
                 new BeaconParser().setBeaconLayout(BeaconParser.EDDYSTONE_TLM_LAYOUT));
-
         beaconManager.getBeaconParsers().add(
                 new BeaconParser().setBeaconLayout(BeaconParser.EDDYSTONE_UID_LAYOUT));
+        beaconManager.getBeaconParsers().add(
+                new BeaconParser().setBeaconLayout("m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24"));
+        beaconManager.getBeaconParsers().add(
+                new BeaconParser().setBeaconLayout("m:2-3=beac,i:4-19,i:20-21,i:22-23,p:24-24"));
+        beaconManager.getBeaconParsers().add(
+                new BeaconParser().setBeaconLayout("s:0-1=feaa,m:2-2=10,p:3-3:-41,i:4-21v"));
 
-
-
-        // iBeacon format
-        beaconManager.getBeaconParsers().add(new BeaconParser()
-                .setBeaconLayout("m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24"));
-
-        // AltBeacon format
-        beaconManager.getBeaconParsers().add(new BeaconParser()
-                .setBeaconLayout("m:2-3=beac,i:4-19,i:20-21,i:22-23,p:24-24,d:25-25"));
-
-
-        // Eddystone URL format
-        beaconManager.getBeaconParsers().add(new BeaconParser()
-                .setBeaconLayout("s:0-1=feaa,m:2-2=10,p:3-3:-41,i:4-21v"));
-
-        // Set scan periods for better performance
-        beaconManager.setForegroundScanPeriod(1100L); // Scan for 1.1 seconds
-        beaconManager.setForegroundBetweenScanPeriod(0L); // No gap between scans
-        beaconManager.setBackgroundScanPeriod(10000L); // Background scan period
-        beaconManager.setBackgroundBetweenScanPeriod(60000L); // Background gap
+        // Set scan periods
+        beaconManager.setForegroundScanPeriod(1100L);
+        beaconManager.setForegroundBetweenScanPeriod(0L);
+        beaconManager.setBackgroundScanPeriod(10000L);
+        beaconManager.setBackgroundBetweenScanPeriod(60000L);
 
         // Bind to beacon service
         beaconManager.bind(this);
-    }
 
-    // Add listener
-    public void addListener(BeaconScanListener listener) {
-        if (listener != null && !listeners.contains(listener)) {
-            listeners.add(listener);
-            Log.d(TAG, "BeaconScanListener added. Total listeners: " + listeners.size());
+        // Initialize BLE scanner
+        BluetoothManager bluetoothManager = (BluetoothManager) application.getSystemService(Context.BLUETOOTH_SERVICE);
+        if (bluetoothManager != null) {
+            BluetoothAdapter bluetoothAdapter = bluetoothManager.getAdapter();
+            if (bluetoothAdapter != null) {
+                bleScanner = bluetoothAdapter.getBluetoothLeScanner();
+            }
         }
     }
 
-    // Remove listener
-    public void removeListener(BeaconScanListener listener) {
-        if (listener != null) {
-            listeners.remove(listener);
-            Log.d(TAG, "BeaconScanListener removed. Total listeners: " + listeners.size());
+    // BLE scan callback
+    private final ScanCallback bleScanCallback = new ScanCallback() {
+        @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+        @Override
+        public void onScanResult(int callbackType, ScanResult result) {
+            try {
+                String macAddress = result.getDevice().getAddress();
+                int rssi = result.getRssi();
+
+                BeaconData bleDevice = new BeaconData();
+                bleDevice.macAddress = macAddress;
+                bleDevice.rssi = rssi;
+                bleDevice.distance = calculateDistance(rssi);
+                bleDevice.beaconTypeCode = 0; // Mark as raw BLE
+                bleDevice.serviceUuid = 0;
+                bleDevice.uuid = (result.getDevice().getName() != null) ? result.getDevice().getName() : macAddress;
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    updateBleDevicesList(bleDevice);
+                }
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error processing BLE scan result: " + e.getMessage());
+            }
         }
+    };
+
+    @RequiresApi(api = Build.VERSION_CODES.N)
+    private void updateBleDevicesList(BeaconData newDevice) {
+        rawBleDevices.removeIf(device -> device.macAddress.equals(newDevice.macAddress));
+        rawBleDevices.add(newDevice);
     }
 
     // Start scanning
+    @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
     public void startScanning() {
         if (!isScanning && isBeaconServiceConnected) {
             try {
@@ -154,12 +189,21 @@ public class BeaconScannerManager implements BeaconConsumer, RangeNotifier {
                 Log.e(TAG, "Failed to start beacon scanning", e);
             }
         } else {
-            Log.w(TAG, "Cannot start scanning. isScanning: " + isScanning +
-                    ", isServiceConnected: " + isBeaconServiceConnected);
+            Log.w(TAG, "Cannot start beacon scanning. isScanning: " + isScanning + ", isServiceConnected: " + isBeaconServiceConnected);
+        }
+
+        if (bleScanner != null && !isBleScanning) {
+            ScanSettings settings = new ScanSettings.Builder()
+                    .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                    .build();
+            bleScanner.startScan(null, settings, bleScanCallback);
+            isBleScanning = true;
+            Log.d(TAG, "Started BLE scanning");
         }
     }
 
     // Stop scanning
+    @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
     public void stopScanning() {
         if (isScanning && isBeaconServiceConnected) {
             try {
@@ -170,42 +214,37 @@ public class BeaconScannerManager implements BeaconConsumer, RangeNotifier {
                 Log.e(TAG, "Failed to stop beacon scanning", e);
             }
         }
+        if (bleScanner != null && isBleScanning) {
+            bleScanner.stopScan(bleScanCallback);
+            isBleScanning = false;
+            Log.d(TAG, "Stopped BLE scanning");
+        }
     }
 
     // Check if Bluetooth is enabled
     public boolean isBluetoothEnabled() {
         BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-        return bluetoothAdapter != null && bluetoothAdapter.isEnabled();
+        return (bluetoothAdapter != null) && bluetoothAdapter.isEnabled();
     }
 
-    // Safe method to convert identifier to int
+    // Safe conversion of identifier to int
     private int safeIdentifierToInt(Identifier identifier) {
-        if (identifier == null) {
-            return 0;
-        }
-
+        if (identifier == null) return 0;
         try {
-            // Try the direct conversion first
             return identifier.toInt();
         } catch (UnsupportedOperationException e) {
-            // Handle identifiers that are too long (like UUIDs)
             String idString = identifier.toString();
-
             if (idString.length() >= 36) {
-                // This is likely a UUID (36 chars with dashes), extract last 4 hex chars
                 String lastFourChars = idString.replaceAll("-", "");
                 if (lastFourChars.length() >= 4) {
                     lastFourChars = lastFourChars.substring(lastFourChars.length() - 4);
                     try {
                         return Integer.parseInt(lastFourChars, 16);
                     } catch (NumberFormatException nfe) {
-                        // Fallback to hashCode
                         return Math.abs(idString.hashCode()) % 65536;
                     }
                 }
             }
-
-            // For other cases, use hashCode and keep within 2-byte range
             return Math.abs(idString.hashCode()) % 65536;
         } catch (Exception e) {
             Log.e(TAG, "Error converting identifier to int: " + e.getMessage());
@@ -213,21 +252,14 @@ public class BeaconScannerManager implements BeaconConsumer, RangeNotifier {
         }
     }
 
-    // Get service UUID from identifier safely
+    // Get service UUID from identifier
     private int getServiceUuid(Identifier identifier) {
-        if (identifier == null) {
-            return 0;
-        }
-
+        if (identifier == null) return 0;
         try {
             String idString = identifier.toString().toLowerCase();
-
-            // Check if this looks like an Eddystone service UUID
             if (idString.contains("feaa") || idString.contains("0xfeaa")) {
                 return 0xFEAA;
             }
-
-            // For UUIDs (typically 36 characters with dashes), extract a representative value
             if (idString.length() >= 36) {
                 return safeIdentifierToInt(identifier);
             } else {
@@ -239,14 +271,13 @@ public class BeaconScannerManager implements BeaconConsumer, RangeNotifier {
         }
     }
 
-    // BeaconConsumer interface methods
+    // BeaconConsumer methods
+    @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
     @Override
     public void onBeaconServiceConnect() {
         isBeaconServiceConnected = true;
         beaconManager.addRangeNotifier(this);
         Log.d(TAG, "Beacon service connected");
-
-        // Auto-start scanning if there are listeners
         if (!listeners.isEmpty()) {
             startScanning();
         }
@@ -267,33 +298,28 @@ public class BeaconScannerManager implements BeaconConsumer, RangeNotifier {
         return application.bindService(intent, serviceConnection, i);
     }
 
-    // RangeNotifier interface method - THIS IS THE FIXED METHOD
+    // RangeNotifier method
     @Override
     public void didRangeBeaconsInRegion(Collection<Beacon> beacons, Region region) {
         List<BeaconData> detectedBeacons = new ArrayList<>();
-
         for (Beacon beacon : beacons) {
             Log.d(TAG, "Beacon detected → typeCode: " + beacon.getBeaconTypeCode()
                     + ", serviceUuid: " + beacon.getServiceUuid()
                     + ", mac: " + beacon.getBluetoothAddress()
                     + ", rssi: " + beacon.getRssi());
-
             try {
                 BeaconData beaconData = new BeaconData();
-
-                // Set basic properties
                 beaconData.rssi = (float) beacon.getRssi();
                 beaconData.distance = (float) beacon.getDistance();
                 beaconData.macAddress = beacon.getBluetoothAddress();
 
                 List<Identifier> identifiers = beacon.getIdentifiers();
 
-                // Handle Eddystone beacons FIRST and don't overwrite serviceUuid
                 boolean isEddystone = false;
                 if (beacon.getServiceUuid() == 0xfeaa) {
                     isEddystone = true;
                     int typeCode = beacon.getBeaconTypeCode();
-                    beaconData.serviceUuid = 0xfeaa;  // Keep this value
+                    beaconData.serviceUuid = 0xfeaa;
                     beaconData.beaconTypeCode = typeCode;
 
                     if (typeCode == 0x00) { // Eddystone-UID
@@ -307,14 +333,11 @@ public class BeaconScannerManager implements BeaconConsumer, RangeNotifier {
                     }
                 }
 
-                // Handle identifiers - but DON'T overwrite serviceUuid for Eddystone
                 if (identifiers.size() >= 1) {
                     Identifier id1 = identifiers.get(0);
                     if (id1 != null) {
                         String idString = id1.toString();
                         beaconData.uuid = idString;
-
-                        // Only set serviceUuid if not already set (i.e., not Eddystone)
                         if (!isEddystone) {
                             if (idString.length() >= 36) {
                                 beaconData.serviceUuid = getServiceUuid(id1);
@@ -333,13 +356,11 @@ public class BeaconScannerManager implements BeaconConsumer, RangeNotifier {
                     beaconData.minor = safeIdentifierToInt(identifiers.get(2));
                 }
 
-                // Set beacon type code if not already set
                 if (beaconData.beaconTypeCode == 0) {
                     int beaconTypeCode = beacon.getBeaconTypeCode();
                     if (beaconTypeCode != 0) {
                         beaconData.beaconTypeCode = beaconTypeCode;
                     } else {
-                        // Determine beacon type based on identifier pattern
                         if (identifiers.size() == 3) {
                             String firstId = identifiers.get(0).toString();
                             if (firstId.length() >= 36) {
@@ -350,16 +371,20 @@ public class BeaconScannerManager implements BeaconConsumer, RangeNotifier {
                 }
 
                 detectedBeacons.add(beaconData);
-
             } catch (Exception e) {
                 Log.e(TAG, "Error processing beacon: " + e.getMessage(), e);
             }
         }
 
+        // Combine detected beacons and BLE devices
+        List<BeaconData> allDevices = new ArrayList<>();
+        allDevices.addAll(detectedBeacons);
+        allDevices.addAll(rawBleDevices);
+
         // Notify all listeners
         for (BeaconScanListener listener : listeners) {
             try {
-                listener.onBeaconsDetected(detectedBeacons);
+                listener.onBeaconsDetected(allDevices);
             } catch (Exception e) {
                 Log.e(TAG, "Error notifying beacon listener: " + e.getMessage(), e);
             }
@@ -370,8 +395,24 @@ public class BeaconScannerManager implements BeaconConsumer, RangeNotifier {
         }
     }
 
+    // Add listener
+    public void addListener(BeaconScanListener listener) {
+        if (listener != null && !listeners.contains(listener)) {
+            listeners.add(listener);
+            Log.d(TAG, "BeaconScanListener added. Total listeners: " + listeners.size());
+        }
+    }
+
+    // Remove listener
+    public void removeListener(BeaconScanListener listener) {
+        if (listener != null) {
+            listeners.remove(listener);
+            Log.d(TAG, "BeaconScanListener removed. Total listeners: " + listeners.size());
+        }
+    }
 
     // Cleanup method
+    @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
     public void destroy() {
         stopScanning();
         listeners.clear();
@@ -386,7 +427,7 @@ public class BeaconScannerManager implements BeaconConsumer, RangeNotifier {
         Log.d(TAG, "BeaconScannerManager destroyed");
     }
 
-    // Getter methods
+    // Helper methods
     public boolean isScanning() {
         return isScanning;
     }
@@ -397,5 +438,10 @@ public class BeaconScannerManager implements BeaconConsumer, RangeNotifier {
 
     public int getListenerCount() {
         return listeners.size();
+    }
+
+    private float calculateDistance(int rssi) {
+        // Your distance calculation logic here
+        return 0f;
     }
 }
